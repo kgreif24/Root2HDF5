@@ -14,19 +14,25 @@ import awkward as ak
 # import hep_ml.reweight as reweight
 
 
-def find_raw_len(filename):
+def find_raw_len(filename, test_branch, flatten):
     """ find_len - Take in a path to a .root file and returns the number
     of events in that file.
 
     Arguments:
     filename (string) - The path to the file (including tree name)
+    test_branch (string) - Name of the branch we should use for getting # of jets
+    flatten (bool) - If true, must flatten branch before counting jets
 
     Returns
     (int) - The number of events
     """
 
     events = uproot.open(filename)
-    return ak.num(events['fjet_pt'], axis=0)
+    if flatten:
+        count = ak.sum(ak.count(events[test_branch].array(), axis=1))
+    else:
+        count = ak.sum(ak.count(events[test_branch].array(), axis=0))
+    return count
 
 
 def find_cut_len(filename, cut_branches, cut_func):
@@ -492,25 +498,3 @@ def count_sig(raw_batch, sig=False):
 
     # Return the number of trues in boolean array
     return np.count_nonzero(cuts)
-
-
-def calc_jets(jets):
-    """ calc_jets - This function will calculate jet level quantities, namely
-    the energy, pT, and mass from the constituent 4 vectors contained in a
-    jet batch. Used to recalculate jet level quantities after systematic
-    variations have been applied to the constituents.
-
-    Arguments:
-    jets (dict): The jet batch, at a minimum must have constituent pT, eta,
-    phi, energy information
-
-    Returns:
-    (dict): A dictionary containing vectors of the calculated quantities
-    """
-
-    # First find px, py, pz from pT, phi, and eta
-    px = jets['fjet_clus_pt'] * np.cos(jets['fjet_clus_phi'])
-    py = jets['fjet_clus_pt'] * np.sin(jets['fjet_clus_phi'])
-    pz = jets['fjet_clus_pt'] * np.sinh(jets['fjet_clus_eta'])
-
-    # More thought must be placed here...
