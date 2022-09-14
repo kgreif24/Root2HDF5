@@ -176,13 +176,15 @@ class RootConverter:
                             jl_branch
                         )
 
-                    # If we are flattening, flatten branch and then send to
-                    # flat batch dictionary
+                    # If we are flattening, need to slice to keep only leading
+                    # 2 jets (assuming jets are sorted by decreasing pT),
+                    # and then flatten the branch with ak.flatten
                     if self.params['flatten']:
-                        flat_batch[kw] = ak.flatten(branch, axis=1)
-                    # Otherwise just send to dictionary
-                    else:
-                        flat_batch[kw] = branch
+                        branch = branch[:,:2,...]
+                        branch = ak.flatten(branch, axis=1)
+
+                    # Send branch to flat_batch dictionary
+                    flat_batch[kw] = branch
 
                 ##################### Make Cuts #####################
 
@@ -198,7 +200,7 @@ class RootConverter:
                 pt_name = self.params['pt_name']
                 pt = cut_batch[pt_name]
                 pt_zero = ak.pad_none(pt, self.params['max_constits'], axis=1, clip=True)
-                pt_zero = ak.to_numpy(ak.fill_none(pt_zero, 0, axis=None))
+                pt_zero = ak.to_numpy(ak.fill_none(pt_zero, 0, axis=1))
                 sort_indeces = np.argsort(pt_zero, axis=1)
 
                 # Find indeces of very small (or zero) pt constituents.

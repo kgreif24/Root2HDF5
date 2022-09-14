@@ -28,10 +28,16 @@ def find_raw_len(filename, test_branch, flatten):
     """
 
     events = uproot.open(filename)
+
+    # Get test branch, and drop 3rd+ jets
+    tb = events[test_branch].array()
+    tb = tb[:,:2]
+
+    # Count the number of jets we have left
     if flatten:
-        count = ak.sum(ak.count(events[test_branch].array(), axis=1))
+        count = ak.sum(ak.count(tb, axis=1))
     else:
-        count = ak.sum(ak.count(events[test_branch].array(), axis=0))
+        count = ak.sum(ak.count(tb, axis=0))
     return count
 
 

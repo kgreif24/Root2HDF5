@@ -30,7 +30,7 @@ def raw_preprocess(jets, sort_indeces, zero_indeces, params):
 
         # Zero pad
         temp = ak.pad_none(branch, params['max_constits'], axis=1, clip=True)
-        temp = ak.to_numpy(ak.fill_none(temp, 0, axis=None))
+        temp = ak.to_numpy(ak.fill_none(temp, 0, axis=1))
 
         # Set small pT constituents to zero
         temp[zero_indeces] = 0
