@@ -1,6 +1,6 @@
 """ set_builder.py - This program will define a class which generates an
 .h5 file ready for training, starting from intermediates files. It can also
-calculate training weights, and perform simple standardizations.
+calculate training weights, and perform simple standardizations (to be added!).
 
 Author: Kevin Greif
 Last updated 9/14/22
@@ -60,10 +60,11 @@ class SetBuilder:
         else:
             self.run_bkg = False
 
-        # Perform train / test split if desired, build schedule
-        if setup_dict['test_name'] != None:
+        # If statements for covering 4 possible configurations for .h5 files
+        # If we are making train / test split and including background
+        if (setup_dict['test_name'] != None) and (self.run_bkg):
 
-            print("Running with train / test split")
+            print("Running with train / test split and background")
 
             # Calculate split
             frac = setup_dict['test_frac']
@@ -72,27 +73,41 @@ class SetBuilder:
             # Perform splits
             sig_test = sig_list[:split]
             sig_train = sig_list[split:]
-            if self.run_bkg:
-                bkg_test = bkg_list[:split]
-                bkg_train = bkg_list[split:]
+            bkg_test = bkg_list[:split]
+            bkg_train = bkg_list[split:]
 
             # Append to schedule
-            if self.run_bkg:
-                self.schedule.append({'sig': sig_test, 'bkg': bkg_test, 'test': True})
-                self.schedule.append({'sig': sig_train, 'bkg': bkg_train, 'test': False})
-            else:
-                self.schedule.append({'sig': sig_test, 'bkg': [], 'test': True})
-                self.schedule.append({'sig': sig_train, 'bkg': [], 'test': False})
+            self.schedule.append({'sig': sig_test, 'bkg': bkg_test, 'test': True})
+            self.schedule.append({'sig': sig_train, 'bkg': bkg_train, 'test': False})
 
+        # If we are making train / test split but not running background
+        elif (setup_dict['test_name'] != None) and (not self.run_bkg):
+
+            print("Running with train / test split but no background")
+
+            # Calculate split
+            frac = setup_dict['test_frac']
+            split = int(np.around(frac * len(sig_list)))
+
+            # Perform split
+            sig_test = sig_list[:split]
+            sig_train = sig_list[split:]
+
+            # Append to schedule
+            self.schedule.append({'sig': sig_test, 'bkg': [], 'test': True})
+            self.schedule.append({'sig': sig_train, 'bkg': [], 'test': False})
+
+        # If we are not making train / test split but running background
         elif self.run_bkg:
 
-            print("Running signal and background")
+            print("Running background without train / test split")
 
             self.schedule.append({'sig': sig_list, 'bkg': bkg_list, 'test': False})
 
+        # If we are not making train / test split or running background
         else:
 
-            print("Running signal without labels")
+            print("Running only signal without train / test split")
 
             self.schedule.append({'sig': sig_list, 'bkg': [], 'test': False})
 
@@ -174,7 +189,7 @@ class SetBuilder:
             file.attrs.create("num_jet_features", len(jet_branches))
             file.attrs.create("jet", jet_branches)
             file.attrs.create("constit", constit_branches)
-            file.attrs.create("hl", hl_branches)
+            file.attrs.create("event", event_branches)
             file.attrs.create("max_constits", max_constits)
 
 
@@ -221,9 +236,9 @@ class SetBuilder:
 
                 # Extract dataset names from attributes
                 constit_branches = sig.attrs.get('constit')
-                hl_branches = sig.attrs.get('hl')
                 jet_branches = sig.attrs.get('jet')
-                unstacked = np.concatenate((constit_branches, hl_branches, jet_branches))
+                event_branches = sig.attrs.get('event')
+                unstacked = np.concatenate((constit_branches, jet_branches, event_branches))
 
                 # Get random seed for our shuffles
                 rng_seed = np.random.default_rng()
@@ -261,11 +276,9 @@ class SetBuilder:
 
     def solo_process(self):
         """ solo_process - Identical to the process function, except for use
-        when we are only processing one sample (i.e. the set is not for training
+        when we are only processing signal (i.e. the set is not for training
         but only for plotting and inference purposes). No labels will be added
         to the set in this function.
-
-        Here we always assume target file is self.train
 
         No arguments or returns
         """
@@ -277,39 +290,53 @@ class SetBuilder:
         start_index = 0
 
         # Loop through schedule
-        print("Writing to output file")
-        
-        for i, name in enumerate(self.schedule):
-            print("Now processing file:{}".format(name))
+        for i, d in enumerate(self.schedule):
 
-            # Open file
-            file = h5py.File(name, 'r')
+            # Index for keeping track of writing in the file
+            start_index = 0
 
-            # Find number of jets
-            num_jets = file.attrs.get('num_jets')
-            stop_index = start_index + num_jets
+            # Set target based on if we are running training or testing
+            if d['test']:
+                print("Writing to testing set")
+                target = self.test
+            else:
+                print("Writing to training set")
+                target = self.train
 
-            # Extract dataset names from attributes
-            constit_branches = file.attrs.get('constit')
-            hl_branches = file.attrs.get('hl')
-            jet_branches = file.attrs.get('jet')
-            unstacked = np.concatenate((constit_branches, hl_branches, jet_branches))
+            # Loop through file list
+            iterable = d['sig']
+            for i, sig_name in enumerate(iterable):
+                print("Now processing file:\nSig:{}".format(sig_name))
 
-            # Get random seed for our shuffles
-            rng_seed = np.random.default_rng()
-            rseed = rng_seed.integers(1000)
+                # Open file
+                file = h5py.File(name, 'r')
 
-            # Shuffle, and write each branch
-            for var in unstacked:
-                this_var = file[var][...]
-                self.branch_shuffle(this_var, seed=rseed)
-                self.train[var][start_index:stop_index,...] = this_var
+                # Find number of jets
+                num_jets = file.attrs.get('num_jets')
+                stop_index = start_index + num_jets
+
+                # Extract dataset names from attributes
+                constit_branches = file.attrs.get('constit')
+                jet_branches = file.attrs.get('jet')
+                event_branches = file.attrs.get('event')
+                unstacked = np.concatenate((constit_branches, jet_branches, event_branches))
+
+                # Get random seed for our shuffles
+                rng_seed = np.random.default_rng()
+                rseed = rng_seed.integers(1000)
+
+                # Shuffle, and write each branch
+                for var in unstacked:
+                    this_var = file[var][...]
+                    self.branch_shuffle(this_var, seed=rseed)
+                    self.train[var][start_index:stop_index,...] = this_var
 
             # Increment counters and close file
             start_index = stop_index
             file.close()
 
-        # End file loop
+            # End file loop
+        # End schedule loop
 
         # Finish by printing summary of how many jets were written to file
         print("We wrote", stop_index, "jets to target file")
