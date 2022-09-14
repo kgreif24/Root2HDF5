@@ -11,7 +11,7 @@ from set_builder import SetBuilder
 
 build_dict = {
     'signal': './dataloc/transferLearning/int_zprime/',
-    'background': './dataloc/transferLearning/int_dijet/',
+    'background': None,
     'test_name': None,
     'train_name': './dataloc/transferLearning/delphes_zprime_dijet.h5',
     'test_frac': 0

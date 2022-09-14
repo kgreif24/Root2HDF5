@@ -1,10 +1,9 @@
 """ set_builder.py - This program will define a class which generates an
-.h5 file ready for training, starting from two sets of intermediates files,
-one of which will serve as signal and the other background. It can also
+.h5 file ready for training, starting from intermediates files. It can also
 calculate training weights, and perform simple standardizations.
 
 Author: Kevin Greif
-Last updated 7/5/22
+Last updated 9/14/22
 python3
 """
 
@@ -17,7 +16,7 @@ import processing_utils as pu
 
 class SetBuilder:
     """ SetBuilder - This class provides methods which build a training
-    ready .h5 file out of 2 sets of intermediate .h5 files. All jets will be
+    ready .h5 file out of intermediate .h5 files. All jets will be
     shuffled by default, instructions for calculating training weights
     and standardizations are set in params dictionary passed into init func.
     """
@@ -64,8 +63,7 @@ class SetBuilder:
         # Perform train / test split if desired, build schedule
         if setup_dict['test_name'] != None:
 
-            print("Running signal and background w/ split")
-            assert self.run_bkg
+            print("Running with train / test split")
 
             # Calculate split
             frac = setup_dict['test_frac']
@@ -74,12 +72,17 @@ class SetBuilder:
             # Perform splits
             sig_test = sig_list[:split]
             sig_train = sig_list[split:]
-            bkg_test = bkg_list[:split]
-            bkg_train = bkg_list[split:]
+            if self.run_bkg:
+                bkg_test = bkg_list[:split]
+                bkg_train = bkg_list[split:]
 
             # Append to schedule
-            self.schedule.append({'sig': sig_test, 'bkg': bkg_test, 'test': True})
-            self.schedule.append({'sig': sig_train, 'bkg': bkg_train, 'test': False})
+            if self.run_bkg:
+                self.schedule.append({'sig': sig_test, 'bkg': bkg_test, 'test': True})
+                self.schedule.append({'sig': sig_train, 'bkg': bkg_train, 'test': False})
+            else:
+                self.schedule.append({'sig': sig_test, 'bkg': [], 'test': True})
+                self.schedule.append({'sig': sig_train, 'bkg': [], 'test': False})
 
         elif self.run_bkg:
 
@@ -134,8 +137,8 @@ class SetBuilder:
         # Open reference file
         ref = h5py.File(self.schedule[0]['sig'][0], 'r')
         constit_branches = ref.attrs.get('constit')
-        hl_branches = ref.attrs.get('hl')
         jet_branches = ref.attrs.get('jet')
+        event_branches = ref.attrs.get('event')
         max_constits = ref.attrs.get('max_constits')
 
         # Loop through process list
@@ -152,14 +155,14 @@ class SetBuilder:
             for var in constit_branches:
                 file.create_dataset(var, constit_shape, dtype='f4')
 
-            # HL variables
-            hl_shape = (n_jets,)
-            for var in hl_branches:
-                file.create_dataset(var, hl_shape, dtype='f4')
-
-            # Jet 4 vector
+            # Jet information
+            jet_shape = (n_jets,)
             for var in jet_branches:
-                file.create_dataset(var, hl_shape, dtype='f4')
+                file.create_dataset(var, jet_shape, dtype='f4')
+
+            # Event information
+            for var in event_branches:
+                file.create_dataset(var, jet_shape, dtype='f4')
 
             # Labels
             if self.run_bkg:
@@ -168,7 +171,6 @@ class SetBuilder:
             # Attributes
             file.attrs.create("num_jets", n_jets)
             file.attrs.create("num_cons", len(constit_branches))
-            file.attrs.create("num_hl", len(hl_branches))
             file.attrs.create("num_jet_features", len(jet_branches))
             file.attrs.create("jet", jet_branches)
             file.attrs.create("constit", constit_branches)
@@ -271,15 +273,13 @@ class SetBuilder:
         # This function should only be called when not running background
         assert not self.run_bkg
 
-        # Only one element of schedule
-        dict = self.schedule[0]
-
         # Counter to keep track of writing in target file
         start_index = 0
 
-        # Loop through file list
+        # Loop through schedule
         print("Writing to output file")
-        for i, name in enumerate(dict['sig']):
+        
+        for i, name in enumerate(self.schedule):
             print("Now processing file:{}".format(name))
 
             # Open file
