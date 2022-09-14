@@ -14,10 +14,10 @@ import preprocessing as pp
 convert_dict = {
     'tree_name': ':IsolatedJet_tree',
     'trim': True,
-    'source_list': './dat/calib_test.list',
+    'source_list': './dat/calib_data.list',
     'flatten': True,
-    'max_constits': 200,
-    'target_dir': './int_calib/',
+    'max_constits': 80,
+    'target_dir': '/eos/user/k/kgreif/data/jet_calib/h5data/',
     'name_stem': 'calib_data',
     'n_targets': 1,
     'total': 4000000,
