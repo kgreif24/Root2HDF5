@@ -17,10 +17,10 @@ convert_dict = {
     'source_list': './dat/calib_data.list',
     'flatten': True,
     'max_constits': 80,
-    'target_dir': '/eos/user/k/kgreif/data/jet_calib/h5data/',
+    'target_dir': '/DFS-L/DATA/whiteson/kgreif/JetCalib/h5data/',
     'name_stem': 'calib_data',
-    'n_targets': 1,
-    'total': 4000000,
+    'n_targets': 20,
+    'total': 20000000,
     'constit_func': pp.raw_preprocess,
     'cut_func': None,
     's_constit_branches': [

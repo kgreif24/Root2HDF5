@@ -18,4 +18,4 @@
 #SBATCH --mail-user=kgreif@uci.edu
 #SBATCH --mail-type=ALL
 
-python r2h_trans.py
+python r2h_calib.py

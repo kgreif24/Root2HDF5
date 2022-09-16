@@ -10,11 +10,11 @@ python3
 from set_builder import SetBuilder
 
 build_dict = {
-    'signal': './dataloc/transferLearning/int_zprime/',
+    'signal': '/DFS-L/DATA/whiteson/kgreif/JetCalib/h5data/intermediates/',
     'background': None,
-    'test_name': None,
-    'train_name': './dataloc/transferLearning/delphes_zprime_dijet.h5',
-    'test_frac': 0
+    'test_name': '/DFS-L/DATA/whiteson/kgreif/JetCalib/h5data/test.h5',
+    'train_name': '/DFS-L/DATA/whiteson/kgreif/JetCalib/h5data/train.h5',
+    'test_frac': 0.2
 }
 
 sb = SetBuilder(build_dict)

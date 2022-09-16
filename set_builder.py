@@ -286,9 +286,6 @@ class SetBuilder:
         # This function should only be called when not running background
         assert not self.run_bkg
 
-        # Counter to keep track of writing in target file
-        start_index = 0
-
         # Loop through schedule
         for i, d in enumerate(self.schedule):
 
@@ -305,8 +302,8 @@ class SetBuilder:
 
             # Loop through file list
             iterable = d['sig']
-            for i, sig_name in enumerate(iterable):
-                print("Now processing file:\nSig:{}".format(sig_name))
+            for i, name in enumerate(iterable):
+                print("Now processing file:\nSig:{}".format(name))
 
                 # Open file
                 file = h5py.File(name, 'r')
@@ -329,19 +326,18 @@ class SetBuilder:
                 for var in unstacked:
                     this_var = file[var][...]
                     self.branch_shuffle(this_var, seed=rseed)
-                    self.train[var][start_index:stop_index,...] = this_var
+                    target[var][start_index:stop_index,...] = this_var
 
-            # Increment counters and close file
-            start_index = stop_index
-            file.close()
+                # Increment counters and close file
+                start_index = stop_index
+                file.close()
+
+            # Update num_jets attribute
+            print("We wrote", stop_index, "jets to target file")
+            target.attrs.modify("num_jets", stop_index)
 
             # End file loop
         # End schedule loop
-
-        # Finish by printing summary of how many jets were written to file
-        print("We wrote", stop_index, "jets to target file")
-        self.train.attrs.modify("num_jets", stop_index)
-
 
 
     def branch_shuffle(self, branch, seed=42):

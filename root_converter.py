@@ -324,6 +324,9 @@ class RootConverter:
             for branch in self.params['jet_branches']:
                 targ_file[branch].resize(hl_size)
 
+            for branch in self.params['event_branches']:
+                targ_file[branch].resize(hl_size)
+
 
     def run(self, **kwargs):
         """ run - Main function for RootConverter class. It performs the
