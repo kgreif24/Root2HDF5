@@ -11,7 +11,7 @@ python3
 import numpy as np
 import h5py
 import uproot
-# import ROOT
+import ROOT
 import awkward as ak
 import processing_utils as pu
 import preprocessing as pp
@@ -70,7 +70,7 @@ class RootConverter:
         # Update total as rounding can cause us to be off by just a bit
         if np.sum(self.limits) != self.params['total']:
             self.params['total'] = np.sum(self.limits)
-            print("Due to rounding we will instead keep", self.params['total'], "jets")
+            print("Due to rounding we will instead keep", self.params['total'], "jets") 
 
         # Lastly load cluster systematics map, if needed.
         # Simply hard code the location of the systematics map on gpatlas
@@ -221,7 +221,7 @@ class RootConverter:
 
                 # Find indeces of very small (or zero) pt constituents.
                 # These will be set to zero. Should probably be refactored
-                small_pt_indeces = np.asarray(pt_zero < 0.1).nonzero()
+                small_pt_indeces = np.asarray(pt_zero < 100).nonzero()
 
                 # Here call preprocessing function, as set in params dict.
                 # See class docstring for details

@@ -16,7 +16,8 @@ def raw_preprocess(jets, sort_indeces, zero_indeces, params):
     """ raw_preprocess - This preprocessing function applies to minimal
     preprocessing used in the public facing data sets.
 
-    args and returns are standard (see above)
+    args and returns are standard. Set params['logs'] to true to take logarithm
+    of dimensionful inputs (pT or energy)
     """
 
     # Initialize preprocess dict
@@ -27,6 +28,10 @@ def raw_preprocess(jets, sort_indeces, zero_indeces, params):
 
         # Get branch
         branch = jets[name]
+
+        # If this is energy or pt branch, take logarithm
+        if params['logs'] and (('pt' in name) or ('E' in name)):
+            branch = np.log(branch)
 
         # Zero pad
         temp = ak.pad_none(branch, params['max_constits'], axis=1, clip=True)

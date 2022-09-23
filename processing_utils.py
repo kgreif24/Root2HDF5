@@ -387,13 +387,14 @@ def calc_standards(file):
     return means_list, stddevs_list
 
 
-def common_cuts(batch):
+def common_cuts(batch, exit_check=[]):
     """ common_cuts - This function will take in a batch of data (almost always as loaded)
     by uproot.iterate and apply the common cuts for Rel22. For when data format does not
     allow uproot to do this for us.
 
     Arguments:
     batch (obj or dict) - The batch, where branches are accessible by string names
+    exit_check (list of strings) - The names of branches we wish to check for -999 exit codes
 
     Returns:
     (array) - A boolean array of len branch.shape[0]. If True, jet passes common cuts
@@ -406,22 +407,9 @@ def common_cuts(batch):
     cuts.append(batch['fjet_numConstituents'] >= 3)
     cuts.append(batch['fjet_m'] / 1000. > 40.)
 
-    # Going to also include cuts on hl var exit codes here
-    cuts.append(batch['fjet_Tau1_wta'] != -999)
-    cuts.append(batch['fjet_Tau2_wta'] != -999)
-    cuts.append(batch['fjet_Tau3_wta'] != -999)
-    cuts.append(batch['fjet_Tau4_wta'] != -999)
-    cuts.append(batch['fjet_Split12'] != -999)
-    cuts.append(batch['fjet_Split23'] != -999)
-    cuts.append(batch['fjet_ECF1'] != -999)
-    cuts.append(batch['fjet_ECF2'] != -999)
-    cuts.append(batch['fjet_ECF3'] != -999)
-    cuts.append(batch['fjet_C2'] != -999)
-    cuts.append(batch['fjet_D2'] != -999)
-    cuts.append(batch['fjet_Qw'] != -999)
-    cuts.append(batch['fjet_L2'] != -999)
-    cuts.append(batch['fjet_L3'] != -999)
-    cuts.append(batch['fjet_ThrustMaj'] != -999)
+    # Look for exit codes
+    for var in exit_check:
+        cuts.append(batch[var] != -999)
 
     # Take and of all cuts
     total_cuts = np.logical_and.reduce(cuts)

@@ -125,15 +125,10 @@ def reco_efficiency(jets, uncert_map, constit_branches):
             flip = rng.uniform()
 
             # Accept or reject constituent
-            print("\np:", p)
-            print("r:", r)
-            print("flip:", flip)
             if ((flip < r) and (cons_en / 1000 < 2.5)):
                 builder.append(False)
-                print("Dropped")
             else:
                 builder.append(True)
-                print("Kept")
 
         ## Increment consituent counter
         constit_counter += 1
