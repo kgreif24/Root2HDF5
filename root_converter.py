@@ -72,6 +72,12 @@ class RootConverter:
             self.params['total'] = np.sum(self.limits)
             print("Due to rounding we will instead keep", self.params['total'], "jets")
 
+        # Lastly load cluster systematics map, if needed.
+        # Simply hard code the location of the systematics map on gpatlas
+        if self.params['syst_func'] != None:
+            self.syst_map = ROOT.TFile(self.params['syst_loc'], 'read')
+
+
 
     def build_files(self, max_size=4000000):
         """ build_files - Builds the h5 files which we will recieve jet data.
@@ -193,6 +199,16 @@ class RootConverter:
                     cut_batch = {kw: flat_batch[kw][cuts,...] for kw in keep_branches}
                 else:
                     cut_batch = flat_batch
+
+                #################### Apply Systs ####################
+
+                if self.params['syst_func'] != None:
+
+                    var_batch = self.params['syst_func'](cut_batch,
+                                                         self.syst_map,
+                                                         self.params['s_constit_branches'],
+                                                         **kwargs)
+                    cut_batch.update(var_batch)
 
                 ################### Constituents ####################
 
