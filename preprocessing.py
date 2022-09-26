@@ -23,8 +23,9 @@ def raw_preprocess(jets, sort_indeces, zero_indeces, params):
     # Initialize preprocess dict
     preprocess = {}
 
-    # Loop through target constituents
-    for name in params['t_constit_branches']:
+    # Loop through target constituents and onehots
+    loop_branches = params['t_constit_branches'] + params['t_onehot_branches']
+    for name in loop_branches:
 
         # Get branch
         branch = jets[name]

@@ -176,154 +176,6 @@ def calc_weights(file, weight_func):
     weight_data[:] = weights
 
 
-def send_data(file_list, target, hl_means, hl_stddevs):
-    """ send_data - This function takes in a list of intermediate .h5 files and from
-    them constructs train/test files with stacked constituent and hl information. It
-    will also transfer over label, pt, and image information.
-
-    Arguments:
-    file_list (list) - A list containing strings giving the path of files to add
-    target (obj) - h5 file object for the target file. Assumes we have write permissions
-    and that the dataset structure of target is exactly the same as the source files.
-    hl_means (list) - A list of hl means to apply in standardization
-    hl_stddevs (list) - A list of hl std. deviations to apply in standardization. Must
-    have the same length as the number of hl vars.
-
-    Returns:
-    None
-    """
-
-    # Start counter to keep track of write index in target file
-    start_index = 0
-
-    # Loop through file list
-    for i, file_name in enumerate(file_list):
-        print("Now processing file:", file_name)
-
-        # Open file
-        file = h5py.File(file_name, 'r')
-        num_file_jets = file.attrs.get("num_jets")
-        stop_index = start_index + num_file_jets
-
-        # Extract dataset names from attributes
-        constit_branches = file.attrs.get('constit')
-        hl_branches = file.attrs.get('hl')
-        image_branch = file.attrs.get('img')
-        pt_branch = file.attrs.get('pt')
-        label_branch = file.attrs.get('label')
-        unstacked = np.concatenate((image_branch, pt_branch, label_branch))
-
-        # Get random seed for our shuffles
-        rng_seed = np.random.default_rng()
-        rseed = rng_seed.integers(1000)
-
-        # Constituents
-        print("Processing constituents")
-        constit_list = []
-
-        for cons in constit_branches:
-            this_cons = file[cons][...]
-            branch_shuffle(this_cons, seed=rseed)
-            constit_list.append(this_cons)
-
-        # Stack all constituents along last axis here
-        constits = np.stack(constit_list, axis=-1)
-        # And write to target file
-        target['constit'][start_index:stop_index,...] = constits
-        del constits
-
-        # HL variables
-        print("Processing hl vars")
-        hlvars_list = []
-
-        for var, mean, stddev in zip(hl_branches, hl_means, hl_stddevs):
-            this_var = file[var][:]
-            branch_shuffle(this_var, seed=rseed)
-
-            # Catch for annoying ECF functions which have large magnitudes
-            if var == 'fjet_ECF3':
-                this_var /= 1e10
-            elif var == 'fjet_ECF2':
-                this_var /= 1e6
-
-            # Standardize variable using information passed in as argument
-            stan_var = (this_var - mean) / stddev
-            hlvars_list.append(stan_var)
-
-        # Stack all hl variables
-        hlvars = np.stack(hlvars_list, axis=-1)
-        # And write to target file
-        target['hl'][start_index:stop_index,...] = hlvars
-        del hlvars
-
-        # Other information, including images, labels, and jet pT
-        print("Processing images, labels, and pT")
-        for branch in unstacked:
-            dataset = file[branch][...]
-            branch_shuffle(dataset, seed=rseed)
-            target[branch][start_index:stop_index,...] = dataset
-
-        # Increment counters and close file
-        start_index = stop_index
-        file.close()
-
-    # End by printing summary of how many jets were written to file
-    print("We wrote", stop_index, "jets to target file")
-    target.attrs.modify("num_jets", stop_index)
-
-
-def unstacked_send(file_list, target):
-    """ unstacked_send - The same function as above, except it skips the stacking
-    and hl variable standardization steps. This is for use in generating the
-    public facing data set.
-
-    Arguments:
-    file_list (list) - List of paths to intermediate files
-    target (string) - The target file h5py object
-
-    Returns:
-    None
-    """
-
-    # Start counter to keep track of write index in target file
-    start_index = 0
-
-    # Loop through file list
-    for i, file_name in enumerate(file_list):
-        print("Now processing file:", file_name)
-
-        # Open file
-        file = h5py.File(file_name, 'r')
-        num_file_jets = file.attrs.get("num_jets")
-        stop_index = start_index + num_file_jets
-
-        # Extract dataset names from attributes
-        constit_branches = file.attrs.get('constit')
-        hl_branches = file.attrs.get('hl')
-        jet_branches = file.attrs.get('pt')
-        label_branch = file.attrs.get('label')
-        unstacked = np.concatenate((constit_branches, hl_branches, jet_branches, label_branch))
-
-        # Get random seed for our shuffles
-        rng_seed = np.random.default_rng()
-        rseed = rng_seed.integers(1000)
-
-        # Process data
-        for var in unstacked:
-            this_var = file[var][...]
-            branch_shuffle(this_var, seed=rseed)
-            target[var][start_index:stop_index,...] = this_var
-
-        # Increment counters and close file
-        start_index = stop_index
-        file.close()
-
-    # End by printing summary of how many jets were written to file
-    print("We wrote", stop_index, "jets to target file")
-    target.attrs.modify("num_jets", stop_index)
-
-
-
 def branch_shuffle(branch, seed=42):
     """ branch_shuffle - This shuffle takes in a dataset represented by a numpy array,
     as well as a seed for a random generator. It will then shuffle the branch using numpys
@@ -492,3 +344,39 @@ def count_sig(raw_batch, sig=False):
 
     # Return the number of trues in boolean array
     return np.count_nonzero(cuts)
+
+
+def encode_onehot(y, n_classes):
+    """ encode_onehot - This function performs onehot encoding on the branches of
+    the batch dict which are given in the "names" array. The number of classes
+    are passed in as a vector of the same length as "names".
+
+    Code inspired by the tf.keras.utils.to_categorical function, which I couldn't
+    be bothered to get to compile with ROOT!
+
+    Arguments:
+    batch (dict) - The dictionary of jet information
+    names (array of strings) - The names of the branches to one hot encode
+    n_classes (array of ints) - The number of classes in each encoding
+
+    Returns:
+    (dict) - A dictionary with the structure {name: onehot_encoded_branch}
+    """
+
+    # Convert data to integers and find shape
+    y = np.array(y, dtype=np.int32)
+    input_shape = y.shape
+
+    # Unravel array
+    y = y.ravel()
+    n = y.shape[0]
+    
+    # Build categorical array
+    categorical = np.zeros((n, n_classes), dtype=np.int32)
+    categorical[np.arange(n), y] = 1
+    
+    # Find output shape and reshape categorical
+    output_shape = input_shape + (n_classes,)
+    categorical = np.reshape(categorical, output_shape)
+
+    return categorical

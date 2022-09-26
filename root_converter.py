@@ -4,7 +4,7 @@ and converting them into the h5 file format. A single dataset can
 subsequently be built by shuffling the .h5 output files.
 
 Author: Kevin Greif
-Last updated 9/13/2022
+Last updated 9/26/2022
 python3
 """
 
@@ -109,12 +109,17 @@ class RootConverter:
             for br in self.params['jet_branches']:
                 file.create_dataset(br, jet_size, maxshape=jet_size, dtype='f4')
 
+            for br, nc in zip(self.params['t_onehot_branches'], self.params['t_onehot_classes']):
+                oh_size = (max_size, self.params['max_constits'], nc)
+                file.create_dataset(br, oh_size, maxshape=oh_size, dtype='i4')
+
             for br in self.params['event_branches']:
                 file.create_dataset(br, jet_size, maxshape=jet_size, dtype='f4')
 
             # Set file attributes
             file.attrs.create('num_jets', 0, dtype='i4')
             file.attrs.create('constit', self.params['t_constit_branches'])
+            file.attrs.create('onehot', self.params['t_onehot_branches'])
             file.attrs.create('jet', self.params['jet_branches'])
             file.attrs.create('event', self.params['event_branches'])
             file.attrs.create('max_constits', self.params['max_constits'])
@@ -163,9 +168,6 @@ class RootConverter:
 
                 ##################### Flatten #######################
 
-                # Initialize flat batch dictionary
-                flat_batch = {}
-
                 # Loop over fields in jet batch
                 for kw in jet_batch.fields:
 
@@ -189,32 +191,30 @@ class RootConverter:
                         branch = branch[:,:2,...]
                         branch = ak.flatten(branch, axis=1)
 
-                    # Send branch to flat_batch dictionary
-                    flat_batch[kw] = branch
+                    # Send branch to batch dictionary
+                    batch_data[kw] = branch
 
                 ##################### Make Cuts #####################
 
                 if self.params['cut_func'] != None:
-                    cuts = self.params['cut_func'](flat_batch)
-                    cut_batch = {kw: flat_batch[kw][cuts,...] for kw in keep_branches}
-                else:
-                    cut_batch = flat_batch
+                    cuts = self.params['cut_func'](batch_data)
+                    batch_data = {kw: batch_data[kw][cuts,...] for kw in keep_branches}
 
                 #################### Apply Systs ####################
 
                 if self.params['syst_func'] != None:
 
-                    var_batch = self.params['syst_func'](cut_batch,
+                    var_batch = self.params['syst_func'](batch_data,
                                                          self.syst_map,
                                                          self.params['s_constit_branches'],
                                                          **kwargs)
-                    cut_batch.update(var_batch)
+                    batch_data.update(var_batch)
 
                 ################### Constituents ####################
 
                 # Get indeces to sort by increasing pt (will be inverted later)
                 pt_name = self.params['pt_name']
-                pt = cut_batch[pt_name]
+                pt = batch_data[pt_name]
                 pt_zero = ak.pad_none(pt, self.params['max_constits'], axis=1, clip=True)
                 pt_zero = ak.to_numpy(ak.fill_none(pt_zero, 0, axis=1))
                 sort_indeces = np.argsort(pt_zero, axis=1)
@@ -225,11 +225,31 @@ class RootConverter:
 
                 # Here call preprocessing function, as set in params dict.
                 # See class docstring for details
-                cons_batch = self.params['constit_func'](cut_batch,
+                cons_batch = self.params['constit_func'](batch_data,
                                                          sort_indeces,
                                                          small_pt_indeces,
                                                          self.params)
                 batch_data.update(cons_batch)
+
+                ################## One Hot Encoding ##################
+
+                # Call encode_onehot processing util if necessary
+                for name, nc in zip(self.params['t_onehot_branches'], self.params['t_onehot_classes']):
+
+                    # Pull data from branch and convert to numpy
+                    data = batch_data[name]
+                    data = ak.pad_none(data, self.params['max_constits'], axis=1, clip=True)
+                    data = ak.to_numpy(ak.fill_none(data, 0, axis=1))
+
+                    # Call encoding util
+                    ohe = pu.encode_onehot(data, nc)
+
+                    # Mask all empty consituent slots
+                    extra_zeros = np.zeros(len(small_pt_indeces[0]), dtype=np.int32)
+                    mask_onehot = small_pt_indeces + (extra_zeros,)
+                    ohe[mask_onehot] = 0
+
+                    batch_data[name] = ohe
 
                 ####################### Jet + Event ########################
 
@@ -237,8 +257,7 @@ class RootConverter:
                 # to batch_data dict
                 for name in non_constit_branches:
 
-                    branch = cut_batch[name]
-                    batch_data[name] = ak.to_numpy(branch)
+                    batch_data[name] = ak.to_numpy(batch_data[name])
 
                 # Also find batch length here
                 batch_length = batch_data[pt_name].shape[0]

@@ -3,7 +3,7 @@
 calculate training weights, and perform simple standardizations (to be added!).
 
 Author: Kevin Greif
-Last updated 9/14/22
+Last updated 9/26/22
 python3
 """
 
@@ -165,13 +165,21 @@ class SetBuilder:
             elif i == 1:
                 n_jets = self.n_test
 
+            # Find shapes of data sets
+            if self.params['stack']:
+                constit_shape = (n_jets, max_constits, len(constit_branches))
+            else:
+                constit_shape = (n_jets, max_constits)
+            jet_shape = (n_jets,)
+
             # Constituents
-            constit_shape = (n_jets, max_constits)
-            for var in constit_branches:
-                file.create_dataset(var, constit_shape, dtype='f4')
+            if self.params['stack']:
+                file.create_dataset('constit', constit_shape, dtype='f4')
+            else:
+                for var in constit_branches:
+                    file.create_dataset(var, constit_shape, dtype='f4')
 
             # Jet information
-            jet_shape = (n_jets,)
             for var in jet_branches:
                 file.create_dataset(var, jet_shape, dtype='f4')
 
@@ -181,7 +189,7 @@ class SetBuilder:
 
             # Labels
             if self.run_bkg:
-                file.create_dataset('labels', hl_shape, dtype='i4')
+                file.create_dataset('labels', jet_shape, dtype='i4')
 
             # Attributes
             file.attrs.create("num_jets", n_jets)
@@ -238,7 +246,12 @@ class SetBuilder:
                 constit_branches = sig.attrs.get('constit')
                 jet_branches = sig.attrs.get('jet')
                 event_branches = sig.attrs.get('event')
-                unstacked = np.concatenate((constit_branches, jet_branches, event_branches))
+                if self.params['stack']:
+                    unstacked = np.concatenate((jet_branches, event_branches))
+                    stacked = constit_branches
+                else:
+                    unstacked = np.concatenate((constit_branches, jet_branches, event_branches))
+                    stacked = []
 
                 # Get random seed for our shuffles
                 rng_seed = np.random.default_rng()
@@ -252,6 +265,18 @@ class SetBuilder:
                     self.branch_shuffle(this_var, seed=rseed)
                     target[var][start_index:stop_index,...] = this_var
 
+                # Handle stacked constituent branches
+                if self.params['stack']:
+                    stack_branches = []
+                    for var in stacked:
+                        sig_var = sig[var][...]
+                        bkg_var = bkg[var][...]
+                        this_var = np.concatenate((sig_var, bkg_var), axis=0)
+                        self.branch_shuffle(this_var, seed=rseed)
+                        stack_branches.append(this_var)
+                    stacked_out = np.stack(stack_branches, axis=-1)
+                    target['constit'][start_index:stop_index,...] = stacked_out
+                
                 # Build labels branch
                 sig_labels = np.ones(num_sig_jets)
                 bkg_labels = np.zeros(num_bkg_jets)
@@ -281,6 +306,9 @@ class SetBuilder:
         to the set in this function.
 
         No arguments or returns
+
+        TODO: update to allow for stacking constituent branches, update to allow
+        for one hot encoding taste (actually last one should be folded into r2h step)
         """
 
         # This function should only be called when not running background
