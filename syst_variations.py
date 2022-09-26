@@ -137,10 +137,8 @@ def reco_efficiency(jets, uncert_map, constit_branches):
         if constit_counter == jet_constits:
 
             # Add array break
-            p_builder.end_list()
-            E_builder.end_list()
-            p_builder.begin_list()
-            E_builder.begin_list()
+            builder.end_list()
+            builder.begin_list()
 
             # Reset constituent counter
             constit_counter = 0
