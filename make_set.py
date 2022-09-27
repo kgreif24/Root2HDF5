@@ -12,7 +12,7 @@ from set_builder import SetBuilder
 build_dict = {
     'signal': '/DFS-L/DATA/whiteson/kgreif/JetTaggingH5/int_test_esup/',
     'background': '/DFS-L/DATA/whiteson/kgreif/JetTaggingH5/int_test_nominal/',
-    'test_name': None, # '/DFS-L/DATA/whiteson/kgreif/JetTaggingH5/syst_sets/test.h5',
+    'test_name': '/DFS-L/DATA/whiteson/kgreif/JetTaggingH5/syst_sets/test.h5',
     'train_name': '/DFS-L/DATA/whiteson/kgreif/JetTaggingH5/syst_sets/train.h5',
     'test_frac': 0.2,
     'stack': True

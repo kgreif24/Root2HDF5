@@ -154,6 +154,7 @@ class SetBuilder:
         constit_branches = ref.attrs.get('constit')
         jet_branches = ref.attrs.get('jet')
         event_branches = ref.attrs.get('event')
+        onehot_branches = ref.attrs.get('onehot')
         max_constits = ref.attrs.get('max_constits')
 
         # Loop through process list
@@ -171,6 +172,8 @@ class SetBuilder:
             else:
                 constit_shape = (n_jets, max_constits)
             jet_shape = (n_jets,)
+            # For now hardcoded to assume constituent taste is only onehot branch
+            onehot_shape = (n_jets, max_constits, 3)
 
             # Constituents
             if self.params['stack']:
@@ -187,6 +190,10 @@ class SetBuilder:
             for var in event_branches:
                 file.create_dataset(var, jet_shape, dtype='f4')
 
+            # One hot information
+            for var in onehot_branches:
+                file.create_dataset(var, onehot_shape, dtype='i4')
+
             # Labels
             if self.run_bkg:
                 file.create_dataset('labels', jet_shape, dtype='i4')
@@ -198,6 +205,7 @@ class SetBuilder:
             file.attrs.create("jet", jet_branches)
             file.attrs.create("constit", constit_branches)
             file.attrs.create("event", event_branches)
+            file.attrs.create("onehot", onehot_branches)
             file.attrs.create("max_constits", max_constits)
 
 
@@ -246,11 +254,12 @@ class SetBuilder:
                 constit_branches = sig.attrs.get('constit')
                 jet_branches = sig.attrs.get('jet')
                 event_branches = sig.attrs.get('event')
+                onehot_branches = sig.attrs.get('onehot')
                 if self.params['stack']:
-                    unstacked = np.concatenate((jet_branches, event_branches))
+                    unstacked = np.concatenate((jet_branches, event_branches, onehot_branches))
                     stacked = constit_branches
                 else:
-                    unstacked = np.concatenate((constit_branches, jet_branches, event_branches))
+                    unstacked = np.concatenate((constit_branches, jet_branches, event_branches, onehot_branches))
                     stacked = []
 
                 # Get random seed for our shuffles
@@ -259,8 +268,8 @@ class SetBuilder:
 
                 # Concatenate, Shuffle, and Write each branch
                 for var in unstacked:
-                    sig_var = sig[var][...]
-                    bkg_var = bkg[var][...]
+                    sig_var = sig[var][:num_sig_jets,...]
+                    bkg_var = bkg[var][:num_bkg_jets,...]
                     this_var = np.concatenate((sig_var, bkg_var), axis=0)
                     self.branch_shuffle(this_var, seed=rseed)
                     target[var][start_index:stop_index,...] = this_var
@@ -269,8 +278,8 @@ class SetBuilder:
                 if self.params['stack']:
                     stack_branches = []
                     for var in stacked:
-                        sig_var = sig[var][...]
-                        bkg_var = bkg[var][...]
+                        sig_var = sig[var][:num_sig_jets,...]
+                        bkg_var = bkg[var][:num_bkg_jets,...]
                         this_var = np.concatenate((sig_var, bkg_var), axis=0)
                         self.branch_shuffle(this_var, seed=rseed)
                         stack_branches.append(this_var)
@@ -292,11 +301,12 @@ class SetBuilder:
                 bkg.close()
 
             # End file loop
-        # End schedule loop
 
-        # Finish by printing summary of how many jets were written to file
-        print("We wrote", stop_index, "jets to target file")
-        target.attrs.modify("num_jets", stop_index)
+            # Finish by printing summary of how many jets were written to file
+            print("We wrote", stop_index, "jets to target file")
+            target.attrs.modify("num_jets", stop_index)
+
+        # End schedule loop
 
 
     def solo_process(self):

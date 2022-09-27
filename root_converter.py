@@ -362,6 +362,10 @@ class RootConverter:
             for branch in self.params['event_branches']:
                 targ_file[branch].resize(hl_size)
 
+            for branch, nc in zip(self.params['t_onehot_branches'], self.params['t_onehot_classes']):
+                onehot_size = (self.start_index[file_num], self.params['max_constits'], nc)
+                targ_file[branch].resize(onehot_size)
+
 
     def run(self, **kwargs):
         """ run - Main function for RootConverter class. It performs the
