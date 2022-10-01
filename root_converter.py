@@ -70,7 +70,7 @@ class RootConverter:
         # Update total as rounding can cause us to be off by just a bit
         if np.sum(self.limits) != self.params['total']:
             self.params['total'] = np.sum(self.limits)
-            print("Due to rounding we will instead keep", self.params['total'], "jets") 
+            print("Due to rounding we will instead keep", self.params['total'], "jets")
 
         # Lastly load cluster systematics map, if needed.
         # Simply hard code the location of the systematics map on gpatlas
@@ -160,6 +160,7 @@ class RootConverter:
             non_constit_branches = (self.params['jet_branches'] + self.params['event_branches'])
             keep_branches = non_constit_branches + self.params['s_constit_branches']
             source_branches = keep_branches + self.params['cut_branches']
+            target_branches = non_constit_branches + self.params['t_constit_branches'] + self.params['t_onehot_branches']
             for jet_batch in events.iterate(step_size="200 MB",
                                             filter_name=source_branches):
 
@@ -275,7 +276,7 @@ class RootConverter:
                     # Set break flag
                     hit_file_limit = True
 
-                self.write_branches(batch_data, batch_length)
+                self.write_branches(batch_data, target_branches, batch_length)
 
                 #################### Increment ####################
 
@@ -294,12 +295,13 @@ class RootConverter:
             targ_file.attrs.modify("num_jets", num_jets)
 
 
-    def write_branches(self, batch, length):
+    def write_branches(self, batch, targets, length):
         """ write_branches - This function will write the branches contained
         in a batch to the target .h5 files.
 
         Arguments:
         batch (dict): A dictionary containing the batch of data to write
+        targets (list of strings): A list of the branches in dictionary to write
         length (int): The number of jets to write in this batch
 
         Returns:
@@ -309,10 +311,10 @@ class RootConverter:
         print("Number of jets to write in this batch:", length)
 
         # Loop over all target branches
-        for name, branch in batch.items():
+        for name in targets:
 
             # Split branch into n_targets pieces using np.array_split
-            branch_splits = np.array_split(branch[:length,...], self.params['n_targets'])
+            branch_splits = np.array_split(batch[name][:length,...], self.params['n_targets'])
 
             # Find length of each split and end indeces for writing
             split_lengths = [split.shape[0] for split in branch_splits]

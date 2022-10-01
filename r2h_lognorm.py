@@ -21,10 +21,10 @@ convert_dict = {
     'max_constits': 200,
     'target_dir': './dataloc/int_nominal/',
     'n_targets': 8,
-    # 'total': 22375114,
-    'total': 4000000,
-    'constit_func': pp.raw_preprocess,
-    'syst_func': syst.energy_scale,
+    'total': 22375114,
+    # 'total': 20000000,
+    'constit_func': pp.train_preprocess,
+    'syst_func': None,
     'cut_func': pu.signal_cuts,
     's_constit_branches': [
         'fjet_clus_pt', 'fjet_clus_eta',
@@ -40,9 +40,10 @@ convert_dict = {
         'fjet_ThrustMaj'
     ],
     't_constit_branches': [
-        'fjet_clus_eta', 'fjet_clus_phi', 'fjet_clus_pt', 'fjet_clus_E',
-        'fjet_clus_taste'
+        'fjet_clus_eta', 'fjet_clus_phi', 'fjet_clus_pt', 'fjet_clus_E'
     ],
+    't_onehot_branches': ['fjet_clus_taste'],
+    't_onehot_classes': [3],
     'jet_branches': ['fjet_pt', 'fjet_eta', 'fjet_phi', 'fjet_m'],
     'cut_branches': [
         'fjet_truthJet_eta', 'fjet_truthJet_pt', 'fjet_numConstituents', 'fjet_m',
@@ -57,5 +58,4 @@ convert_dict = {
 rc = RootConverter(convert_dict)
 
 # Run main programs
-rc.run(direction='up')
-
+rc.run()
