@@ -37,6 +37,9 @@ def reco_efficiency(jets, uncert_map, constit_branches):
     applies systematic variation. Keys are identical to those given as input.
     """
 
+    total_counter = 0
+    dropped_counter = 0
+
     # Get cluster scale histogram from uncert map
     cluster_scale = uncert_map.Get('Scale')
 
@@ -59,7 +62,7 @@ def reco_efficiency(jets, uncert_map, constit_branches):
     # on information in n_constits vector
     en = ak.flatten(en)
     eta = ak.flatten(abs(jets['fjet_clus_eta']))
-    taste = ak.flatten(jets['fjet_clus_pt'])
+    taste = ak.flatten(jets['fjet_clus_taste'])
     iterable = zip(en, eta, taste)
 
     # Counters to manage list breaks
@@ -126,9 +129,12 @@ def reco_efficiency(jets, uncert_map, constit_branches):
 
             # Accept or reject constituent
             if ((flip < r) and (cons_en / 1000 < 2.5)):
+                dropped_counter +=1
                 builder.append(False)
             else:
                 builder.append(True)
+
+            total_counter += 1
 
         ## Increment consituent counter
         constit_counter += 1
@@ -152,6 +158,8 @@ def reco_efficiency(jets, uncert_map, constit_branches):
 
     # Index all constituent level branches, dropping the required constituents
     var_dict = {kw: jets[kw][keep] for kw in constit_branches}
+
+    print("For this batch we dropped {0:f} percent of constituents".format(dropped_counter * 100 / total_counter))
 
     return var_dict
 
@@ -178,7 +186,8 @@ def energy_scale(jets, uncert_map, constit_branches, direction='up'):
     cluster_scale = uncert_map.Get('Scale')
     cluster_means = uncert_map.Get('Mean')
 
-    # Convert energy to GeV
+    # Convert units to GeV
+    pt = jets['fjet_clus_pt'] / 1000
     en = jets['fjet_clus_E'] / 1000
 
     # Loop over jet constituents
@@ -200,8 +209,8 @@ def energy_scale(jets, uncert_map, constit_branches, direction='up'):
     # on information in n_constits vector
     en = ak.flatten(en)
     eta = ak.flatten(abs(jets['fjet_clus_eta']))
-    pt = ak.flatten(jets['fjet_clus_pt'])
-    taste = ak.flatten(jets['fjet_clus_pt'])
+    pt = ak.flatten(pt)
+    taste = ak.flatten(jets['fjet_clus_taste'])
     iterable = zip(en, eta, pt, taste)
 
     # Counters to manage list breaks
@@ -219,9 +228,9 @@ def energy_scale(jets, uncert_map, constit_branches, direction='up'):
         ## If constituent is not neutral (taste == 1), write nominal values
         if cons_taste != 1:
 
-            # Write nominal
-            p_builder.append(cons_pt)
-            E_builder.append(cons_en)
+            # Write nominal, remembering to convert back to MeV
+            p_builder.append(1000 * cons_pt)
+            E_builder.append(1000 * cons_en)
 
         # Else, we apply systematic variation
         else:
@@ -271,9 +280,9 @@ def energy_scale(jets, uncert_map, constit_branches, direction='up'):
             # print("\nOld pT: {0:.4f}\tOld en: {1:.4f}".format(cons_pt, cons_en))
             # print("New pT: {0:0.4f}\tNew en: {1:.4f}".format(ptces, Eces))
 
-            # Add new values to array builders
-            p_builder.append(ptces)
-            E_builder.append(Eces)
+            # Add new values to array builders, remembering to convert back to MeV
+            p_builder.append(1000 * ptces)
+            E_builder.append(1000 * Eces)
 
         ## Increment consituent counter
         constit_counter += 1
@@ -324,7 +333,8 @@ def energy_res(jets, uncert_map, constit_branches):
     cluster_scale = uncert_map.Get('Scale')
     cluster_rms = uncert_map.Get('RMS')
 
-    # Convert energy to GeV
+    # Convert units to GeV
+    pt = jets['fjet_clus_pt'] / 1000
     en = jets['fjet_clus_E'] / 1000
 
     # Instead of building an awkard array with boolean values, we directly
@@ -345,8 +355,8 @@ def energy_res(jets, uncert_map, constit_branches):
     # on information in n_constits vector
     en = ak.flatten(en)
     eta = ak.flatten(abs(jets['fjet_clus_eta']))
-    pt = ak.flatten(jets['fjet_clus_pt'])
-    taste = ak.flatten(jets['fjet_clus_pt'])
+    pt = ak.flatten(pt)
+    taste = ak.flatten(jets['fjet_clus_taste'])
     iterable = zip(en, eta, pt, taste)
 
     # Counters to manage list breaks
@@ -364,9 +374,9 @@ def energy_res(jets, uncert_map, constit_branches):
         ## If constituent is not neutral (taste == 1), write nominal values
         if cons_taste != 1:
 
-            # Write nominal
-            p_builder.append(cons_pt)
-            E_builder.append(cons_en)
+            # Write nominal, converting back to MeV
+            p_builder.append(1000 * cons_pt)
+            E_builder.append(1000 * cons_en)
 
         # Else, we apply systematic variation
         else:
@@ -415,8 +425,8 @@ def energy_res(jets, uncert_map, constit_branches):
             # print("New pT: {0:0.4f}\tNew en: {1:.4f}".format(ptcer, Ecer))
 
             # Add new values to array builders
-            p_builder.append(ptcer)
-            E_builder.append(Ecer)
+            p_builder.append(1000 * ptcer)
+            E_builder.append(1000 * Ecer)
 
         ## Increment consituent counter
         constit_counter += 1
