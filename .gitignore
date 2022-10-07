@@ -1,0 +1,10 @@
+dat/*
+make_set?.py
+r2h_syst?.py
+
+run_ms?.sh
+run_r2h?.sh
+
+dataloc
+
+__pycache__
