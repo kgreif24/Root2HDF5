@@ -261,7 +261,7 @@ class RootConverter:
                     batch_data[name] = ak.to_numpy(batch_data[name])
 
                 # Also find batch length here
-                batch_length = batch_data[pt_name].shape[0]
+                batch_length = pt_zero.shape[0]
 
                 ##################### Write ########################
 
