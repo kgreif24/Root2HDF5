@@ -8,6 +8,7 @@ python3
 """
 
 from set_builder import SetBuilder
+import processing_utils as pu
 
 build_dict = {
     'signal': '/DFS-L/DATA/whiteson/kgreif/JetCalib/h5data/intermediates/',
@@ -15,7 +16,8 @@ build_dict = {
     'test_name': '/DFS-L/DATA/whiteson/kgreif/JetCalib/h5data/test.h5',
     'train_name': '/DFS-L/DATA/whiteson/kgreif/JetCalib/h6data/train.h5',
     'test_frac': 0.1,
-    'stack': True
+    'stack': True,
+    'weight_func': pu.match_weights
 }
 
 sb = SetBuilder(build_dict)
