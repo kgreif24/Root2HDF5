@@ -302,6 +302,11 @@ class SetBuilder:
 
             # End file loop
 
+            # Derive training weights
+            if self.params['weight_func'] != None and not d['test']:
+                print("Calculating training weights")
+                pu.calc_weights(target, self.params['weight_func']) 
+
             # Finish by printing summary of how many jets were written to file
             print("We wrote", stop_index, "jets to target file")
             target.attrs.modify("num_jets", stop_index)

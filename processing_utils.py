@@ -140,12 +140,13 @@ def match_weights(pt, target, n_bins=200):
 def calc_weights(file, weight_func):
     """ calc_weights - This function calculates weights to adjust the pT spectrum of
     the h5 file passed in as arguments. Applies the weight calculation function
-    given by weight_func. This function takes pt as an argument and returns weights.
+    given by weight_func. Currently only setup to reweight the background pT
+    spectrum.
 
     Arguments:
     file (obj) - The file to calculate weights for, must be writable
-    weight_func (function) - The function used to calculate weights. Must take in a
-    vector of jet pt and return jet weights.
+    weight_func (function) - The function used to calculate weights. Must take in
+    vectors of background and signal jet pT
 
     Returns:
     None
@@ -163,7 +164,7 @@ def calc_weights(file, weight_func):
     sig_pt = pt[sig_ind]
     bkg_pt = pt[bkg_ind]
 
-    # Calculate weights for signal
+    # Calculate weights for background
     bkg_weights = weight_func(bkg_pt, sig_pt)
 
     # Assemble single vector of weights
