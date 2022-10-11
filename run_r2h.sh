@@ -12,10 +12,10 @@
 
 #SBATCH --mem=20G
 
-#SBATCH --output=data_gen_ln.out 
-#SBATCH --error=data_gen_ln.err
+#SBATCH --output=data_gen_cal.out 
+#SBATCH --error=data_gen_cal.err
 
 #SBATCH --mail-user=kgreif@uci.edu
 #SBATCH --mail-type=ALL
 
-python r2h_lognorm.py
+python r2h_calib.py

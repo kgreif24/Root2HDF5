@@ -11,7 +11,7 @@ python3
 import numpy as np
 import h5py
 import uproot
-import ROOT
+# import ROOT
 import awkward as ak
 import processing_utils as pu
 import preprocessing as pp
@@ -106,7 +106,7 @@ class RootConverter:
                 file.create_dataset(br, constits_size, maxshape=constits_size, dtype='f4')
 
             jet_size = (max_size,)
-            for br in self.params['jet_branches']:
+            for br in self.params['t_jet_branches']:
                 file.create_dataset(br, jet_size, maxshape=jet_size, dtype='f4')
 
             for br, nc in zip(self.params['t_onehot_branches'], self.params['t_onehot_classes']):
@@ -120,7 +120,7 @@ class RootConverter:
             file.attrs.create('num_jets', 0, dtype='i4')
             file.attrs.create('constit', self.params['t_constit_branches'])
             file.attrs.create('onehot', self.params['t_onehot_branches'])
-            file.attrs.create('jet', self.params['jet_branches'])
+            file.attrs.create('jet', self.params['t_jet_branches'])
             file.attrs.create('event', self.params['event_branches'])
             file.attrs.create('max_constits', self.params['max_constits'])
 
@@ -156,11 +156,24 @@ class RootConverter:
             # Break flag
             hit_file_limit = False
 
-            # Iterate through the files using iterate, filtering out only branches we need
-            non_constit_branches = (self.params['jet_branches'] + self.params['event_branches'])
-            keep_branches = non_constit_branches + self.params['s_constit_branches']
+            # Compile lists of branches for use in varying points in production
+            s_non_constit_branches = (
+                self.params['s_jet_branches'] + self.params['event_branches']
+            )
+            keep_branches = (
+                self.params['s_jet_branches'] + self.params['event_branches'] 
+                + self.params['s_constit_branches']
+            )
             source_branches = keep_branches + self.params['cut_branches']
-            target_branches = non_constit_branches + self.params['t_constit_branches'] + self.params['t_onehot_branches']
+            t_non_constit_branches = (
+                self.params['t_jet_branches'] + self.params['event_branches']
+            )
+            target_branches = (
+                t_non_constit_branches + self.params['t_constit_branches']
+                + self.params['t_onehot_branches']
+            )
+
+            # Use uproot.iterate to loop through files
             for jet_batch in events.iterate(step_size="200 MB",
                                             filter_name=source_branches):
 
@@ -220,9 +233,9 @@ class RootConverter:
                 pt_zero = ak.to_numpy(ak.fill_none(pt_zero, 0, axis=1))
                 sort_indeces = np.argsort(pt_zero, axis=1)
 
-                # Find indeces of very small (or zero) pt constituents.
-                # These will be set to zero. Should probably be refactored
-                small_pt_indeces = np.asarray(pt_zero < 100).nonzero()
+                # Find indeces of constituents we wish to mask by setting
+                # to zero.
+                small_pt_indeces = np.array([], dtype=np.int32)
 
                 # Here call preprocessing function, as set in params dict.
                 # See class docstring for details
@@ -254,10 +267,15 @@ class RootConverter:
 
                 ####################### Jet + Event ########################
 
-                # Simply loop through jet and event branches, convert to numpy and add
-                # to batch_data dict
-                for name in non_constit_branches:
+                # Apply jet level preprocessing if needed
+                if self.params['jet_func'] != None:
+                    preprocessed_jets = self.params['jet_func'](batch_data)
+                    batch_data.update(preprocessed_jets)
 
+                # Loop through jet and event branches
+                for name in t_non_constit_branches:
+
+                    # Convert to numpy
                     batch_data[name] = ak.to_numpy(batch_data[name])
 
                 # Also find batch length here
@@ -358,7 +376,7 @@ class RootConverter:
             for branch in self.params['t_constit_branches']:
                 targ_file[branch].resize(constits_size)
 
-            for branch in self.params['jet_branches']:
+            for branch in self.params['t_jet_branches']:
                 targ_file[branch].resize(hl_size)
 
             for branch in self.params['event_branches']:
