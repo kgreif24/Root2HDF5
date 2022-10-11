@@ -285,7 +285,7 @@ class SetBuilder:
                         stack_branches.append(this_var)
                     stacked_out = np.stack(stack_branches, axis=-1)
                     target['constit'][start_index:stop_index,...] = stacked_out
-                
+
                 # Build labels branch
                 sig_labels = np.ones(num_sig_jets)
                 bkg_labels = np.zeros(num_bkg_jets)
@@ -305,7 +305,7 @@ class SetBuilder:
             # Derive training weights
             if self.params['weight_func'] != None and not d['test']:
                 print("Calculating training weights")
-                pu.calc_weights(target, self.params['weight_func']) 
+                pu.calc_weights(target, self.params['weight_func'])
 
             # Finish by printing summary of how many jets were written to file
             print("We wrote", stop_index, "jets to target file")
@@ -321,9 +321,6 @@ class SetBuilder:
         to the set in this function.
 
         No arguments or returns
-
-        TODO: update to allow for stacking constituent branches, update to allow
-        for one hot encoding taste (actually last one should be folded into r2h step)
         """
 
         # This function should only be called when not running background
@@ -359,7 +356,12 @@ class SetBuilder:
                 constit_branches = file.attrs.get('constit')
                 jet_branches = file.attrs.get('jet')
                 event_branches = file.attrs.get('event')
-                unstacked = np.concatenate((constit_branches, jet_branches, event_branches))
+                if self.params['stack']:
+                    unstacked = np.concatenate((jet_branches, event_branches, onehot_branches))
+                    stacked = constit_branches
+                else:
+                    unstacked = np.concatenate((constit_branches, jet_branches, event_branches, onehot_branches))
+                    stacked = []
 
                 # Get random seed for our shuffles
                 rng_seed = np.random.default_rng()
@@ -371,6 +373,18 @@ class SetBuilder:
                     self.branch_shuffle(this_var, seed=rseed)
                     target[var][start_index:stop_index,...] = this_var
 
+                # Handle stacked constituent branches
+                if self.params['stack']:
+                    stack_branches = []
+                    for var in stacked:
+                        sig_var = sig[var][:num_sig_jets,...]
+                        bkg_var = bkg[var][:num_bkg_jets,...]
+                        this_var = np.concatenate((sig_var, bkg_var), axis=0)
+                        self.branch_shuffle(this_var, seed=rseed)
+                        stack_branches.append(this_var)
+                    stacked_out = np.stack(stack_branches, axis=-1)
+                    target['constit'][start_index:stop_index,...] = stacked_out
+
                 # Increment counters and close file
                 start_index = stop_index
                 file.close()
@@ -380,6 +394,12 @@ class SetBuilder:
             target.attrs.modify("num_jets", stop_index)
 
             # End file loop
+
+            # Derive training weights
+            if self.params['weight_func'] != None and not d['test']:
+                print("Calculating training weights")
+                pu.calc_weights(target, self.params['weight_func'])
+
         # End schedule loop
 
 
