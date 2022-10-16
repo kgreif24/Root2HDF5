@@ -50,6 +50,54 @@ def raw_preprocess(jets, sort_indeces, zero_indeces, params):
     # Finally we return dict
     return preprocess
 
+
+def cartesian_pt_preprocess(jets, sort_indeces, zero_indeces, params):
+    """ cartesian_pt_preprocess - This preprocessing function converts the
+    pt, eta, phi coordinates for jet constituents to px, py, pz. It also places
+    the zero padded and sorted pT information in the return dictionary.
+
+    args and returns are standard. Setting zero_indeces to an empty list will
+    result in no masking being applied to the constituents, so long as the
+    dtype is set to integer 
+    """
+
+    # Pull pt, eta, phi of the constituents
+    # Naming conventions are hardcoded for jet calib project. Could refactor
+    # if needed one day.
+    pts = jets['jet_constit_pt']
+    eta = jets['jet_constit_eta']
+    phi = jets['jet_constit_phi']
+
+    # Calculate cartesian coordinates
+    pxs = pts * np.cos(phi)
+    pys = pts * np.sin(phi)
+    pzs = pts * np.sinh(eta)
+
+    # Send cartesian coordinates to zero padded numpy
+    pxs_zero = zero_pad(pxs, params['max_constits'])
+    pys_zero = zero_pad(pys, params['max_constits'])
+    pzs_zero = zero_pad(pzs, params['max_constits'])
+    pts_zero = zero_pad(pts, params['max_constits'])
+
+    # Mask constituents
+    pxs_zero[zero_indeces] = 0
+    pys_zero[zero_indeces] = 0
+    pzs_zero[zero_indeces] = 0
+    pts_zero[zero_indeces] = 0
+
+    # Sort constituents
+    pxs_sort = np.take_along_axis(pxs_zero, sort_indeces, axis=1)[:,::-1]
+    pys_sort = np.take_along_axis(pys_zero, sort_indeces, axis=1)[:,::-1]
+    pzs_sort = np.take_along_axis(pzs_zero, sort_indeces, axis=1)[:,::-1]
+    pts_sort = np.take_along_axis(pts_zero, sort_indeces, axis=1)[:,::-1]
+
+    # Return dictionary
+    return {'jet_constit_px': pxs_sort, 
+            'jet_constit_py': pys_sort,
+            'jet_constit_pz': pzs_sort,
+            'jet_constit_pt': pts_sort}
+    
+
 def energy_norm(jets, indeces, max_constits=200, **kwargs):
     """ energy_norm - Defines the standard energy constituent preprocessing,
     where the transverse momentum and energy are sorted by decreasing pt
@@ -182,7 +230,7 @@ def simple_angular(jets, sort_indeces, zero_indeces, max_constits=200, **kwargs)
     # Find the eta/phi coordinates of hardest constituent in each jet, going to
     # need some fancy indexing
     ax_index = np.arange(0, len(eta), 1)
-    first_eta = eta[ax_index, sort_indeces[:,-1]]
+    first_eta = eta[ax_index, sort_indeces[:,-2]]
     first_phi = phi[ax_index, sort_indeces[:,-1]]
 
     # Now center
@@ -269,6 +317,65 @@ def train_preprocess(jets, sort_indeces, zero_indeces, params):
     }
     return pp_dict
 
+
+def zero_pad(ak_data, max_constits, fill=0):
+    """ zero_pad - This function converts awkward arrays containing constituent
+    data to padded, rectangular numpy arrays.
+
+    Arguments:
+    ak_data (ak array) - Awkward array of the constituent data
+    max_constits (int) - The number of constituents to include
+    fill (float or int) - The value to fill with, usually 0
+
+    Returns:
+    (array) - zero padded numpy array
+    """
+
+    ak_zero = ak.pad_none(ak_data, max_constits, axis=1, clip=True)
+    ak_zero = ak.to_numpy(ak.fill_none(ak_zero, fill, axis=None))
+
+    return ak_zero
+
+
+def jet_preprocess(jets):
+    """ jet_preprocess - This function converts the jet pt, eta,
+    phi, E four vector into px, py, pz, E. It is hardcoded
+    to act on several jet 4 vectors which are used in the jet 
+    calibration project. 
+
+    Arguments:
+    jets (dict of arrays) - the dictionary with jet data
+
+    Returns:
+    (dict of arrays) - dictionary with the converted data
+    """
+
+    # Initialize return dict
+    rd = {}
+
+    # Hardcode the names and ordering of the relevant branches
+    prefixes = ['jet_Pileup_', 'jet_', 'jet_JES_', 'jet_true_']
+    pt_names = ['jet_PileupPt', 'jet_pt', 'jet_JESPt', 'jet_true_pt']
+    eta_names = ['jet_PileupEta', 'jet_eta', 'jet_JESEta', 'jet_true_eta']
+    phi_names = ['jet_PileupPhi', 'jet_phi', 'jet_JESPhi', 'jet_true_phi']
+    en_names = ['jet_PileupE', 'jet_E', 'jet_JESE', 'jet_true_e']
+
+    # Loop through jet 4 vectors
+    for pf, pt, eta, phi, en in zip(prefixes, pt_names, eta_names, phi_names, en_names):
+
+        # Calculate px, py, pz
+        px = jets[pt] * np.cos(jets[phi])
+        py = jets[pt] * np.sin(jets[phi])
+        pz = jets[pt] * np.sinh(jets[eta])
+
+        # Add to return dict
+        rd[pf+'px'] = px
+        rd[pf+'py'] = py
+        rd[pf+'pz'] = pz
+        rd[pf+'pt'] = jets[pt]
+        rd[pf+'E'] = jets[en]
+
+    return rd
 
 # Some code to test preprocessing
 if __name__ == '__main__':

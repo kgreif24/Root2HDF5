@@ -8,3 +8,4 @@ run_r2h?.sh
 dataloc
 
 __pycache__
+*.pyc

@@ -177,6 +177,34 @@ def calc_weights(file, weight_func):
     weight_data[:] = weights
 
 
+def calc_weights_solo(file, weight_func):
+    """ calc_weights - This function calculates weights to adjust the pT spectrum of
+    the h5 file passed in as arguments. Applies the weight calculation function
+    given by weight_func. This solo version of the function is meant for when
+    there is no signal and background distinction.
+
+    Arguments:
+    file (obj) - The file to calculate weights for, must be writable
+    weight_func (function) - The function used to calculate weights. Must take in
+    a vector of jet pT
+
+    Returns:
+    None
+    """
+
+    # Pull info from file
+    num_jets = file.attrs.get("num_jets")
+    pt = file['jet_pt'][:]
+
+    # Calculate weights
+    weights = weight_func(bkg_pt, sig_pt)
+
+    # Create new dataset in file
+    weight_shape = (num_jets,)
+    weight_data = file.create_dataset("weights", shape=weight_shape, dtype='f4')
+    weight_data[:] = weights
+
+
 def branch_shuffle(branch, seed=42):
     """ branch_shuffle - This shuffle takes in a dataset represented by a numpy array,
     as well as a seed for a random generator. It will then shuffle the branch using numpys
@@ -371,11 +399,11 @@ def encode_onehot(y, n_classes):
     # Unravel array
     y = y.ravel()
     n = y.shape[0]
-    
+
     # Build categorical array
     categorical = np.zeros((n, n_classes), dtype=np.int32)
     categorical[np.arange(n), y] = 1
-    
+
     # Find output shape and reshape categorical
     output_shape = input_shape + (n_classes,)
     categorical = np.reshape(categorical, output_shape)
