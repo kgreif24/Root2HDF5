@@ -201,6 +201,13 @@ class RootConverter:
                     cuts = self.params['cut_func'](batch_data)
                     batch_data = {kw: batch_data[kw][cuts,...] for kw in keep_branches}
 
+                #################### Fix Units ######################
+
+                # Send pT, E, m branches to GeV
+                for kw, branch for batch_data.items():
+                    if any(s in kw for s in ['_pt', '_E', '_m']):
+                        batch_data[kw] = branch / 1000 
+
                 #################### Apply Systs ####################
 
                 if self.params['syst_func'] != None:
