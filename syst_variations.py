@@ -44,7 +44,7 @@ def reco_efficiency(jets, uncert_map, constit_branches):
     cluster_scale = uncert_map.Get('Scale')
 
     # Convert energy to GeV
-    en = jets['fjet_clus_E'] / 1000
+    en = jets['fjet_clus_E']
 
     # In this variation, we build awkward arrays with boolean values so we can
     # apply mask to constituents, dropping the appropriate clusters
@@ -186,9 +186,9 @@ def energy_scale(jets, uncert_map, constit_branches, direction='up'):
     cluster_scale = uncert_map.Get('Scale')
     cluster_means = uncert_map.Get('Mean')
 
-    # Convert units to GeV
-    pt = jets['fjet_clus_pt'] / 1000
-    en = jets['fjet_clus_E'] / 1000
+    # Pull pt and energy
+    pt = jets['fjet_clus_pt']
+    en = jets['fjet_clus_E']
 
     # Loop over jet constituents
     # Instead of building an awkard array with boolean values, we directly
@@ -229,8 +229,8 @@ def energy_scale(jets, uncert_map, constit_branches, direction='up'):
         if cons_taste != 1:
 
             # Write nominal, remembering to convert back to MeV
-            p_builder.append(1000 * cons_pt)
-            E_builder.append(1000 * cons_en)
+            p_builder.append(cons_pt)
+            E_builder.append(cons_en)
 
         # Else, we apply systematic variation
         else:
@@ -265,8 +265,11 @@ def energy_scale(jets, uncert_map, constit_branches, direction='up'):
                 pbin = 1
 
             # Find CES
-            ces = abs(cluster_means.GetBinContent(pbin, ebin) - 1)
-            if (p > 350):
+            bc = cluster_means.GetBinContent(pbin, ebin)
+            ces = abs(bc - 1)
+
+            # Catch case where we are looking up bin with no entries (???)
+            if p > 350 or bc == 0:
                 ces = 0.1
 
             # Apply pT variation
@@ -280,9 +283,9 @@ def energy_scale(jets, uncert_map, constit_branches, direction='up'):
             # print("\nOld pT: {0:.4f}\tOld en: {1:.4f}".format(cons_pt, cons_en))
             # print("New pT: {0:0.4f}\tNew en: {1:.4f}".format(ptces, Eces))
 
-            # Add new values to array builders, remembering to convert back to MeV
-            p_builder.append(1000 * ptces)
-            E_builder.append(1000 * Eces)
+            # Add new values to array builders
+            p_builder.append(ptces)
+            E_builder.append(Eces)
 
         ## Increment consituent counter
         constit_counter += 1
@@ -333,9 +336,9 @@ def energy_res(jets, uncert_map, constit_branches):
     cluster_scale = uncert_map.Get('Scale')
     cluster_rms = uncert_map.Get('RMS')
 
-    # Convert units to GeV
-    pt = jets['fjet_clus_pt'] / 1000
-    en = jets['fjet_clus_E'] / 1000
+    # Pull pt and energy
+    pt = jets['fjet_clus_pt']
+    en = jets['fjet_clus_E']
 
     # Instead of building an awkard array with boolean values, we directly
     # build the new pT and energy values for the constituents
@@ -375,8 +378,8 @@ def energy_res(jets, uncert_map, constit_branches):
         if cons_taste != 1:
 
             # Write nominal, converting back to MeV
-            p_builder.append(1000 * cons_pt)
-            E_builder.append(1000 * cons_en)
+            p_builder.append(cons_pt)
+            E_builder.append(cons_en)
 
         # Else, we apply systematic variation
         else:
@@ -425,8 +428,8 @@ def energy_res(jets, uncert_map, constit_branches):
             # print("New pT: {0:0.4f}\tNew en: {1:.4f}".format(ptcer, Ecer))
 
             # Add new values to array builders
-            p_builder.append(1000 * ptcer)
-            E_builder.append(1000 * Ecer)
+            p_builder.append(ptcer)
+            E_builder.append(Ecer)
 
         ## Increment consituent counter
         constit_counter += 1

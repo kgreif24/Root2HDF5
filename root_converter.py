@@ -11,7 +11,7 @@ python3
 import numpy as np
 import h5py
 import uproot
-# import ROOT
+import ROOT
 import awkward as ak
 import processing_utils as pu
 import preprocessing as pp
@@ -214,6 +214,13 @@ class RootConverter:
                     cuts = self.params['cut_func'](batch_data)
                     batch_data = {kw: batch_data[kw][cuts,...] for kw in keep_branches}
 
+                #################### Fix Units ######################
+
+                # Send pT, E, m branches to GeV
+                for kw, branch in batch_data.items():
+                    if any(s in kw for s in ['_pt', '_E', '_m']):
+                        batch_data[kw] = branch / 1000 
+
                 #################### Apply Systs ####################
 
                 if self.params['syst_func'] != None:
@@ -235,7 +242,7 @@ class RootConverter:
 
                 # Find indeces of constituents we wish to mask by setting
                 # to zero.
-                small_pt_indeces = np.array([], dtype=np.int32)
+                small_pt_indeces = np.asarray(pt_zero < self.params['mask_lim']).nonzero()
 
                 # Here call preprocessing function, as set in params dict.
                 # See class docstring for details
