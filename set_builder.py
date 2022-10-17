@@ -268,12 +268,12 @@ class SetBuilder:
                 jet_branches = sig.attrs.get('jet')
                 event_branches = sig.attrs.get('event')
                 onehot_branches = sig.attrs.get('onehot')
-                if self.params['stack']:
-                    unstacked = np.concatenate((jet_branches, event_branches, onehot_branches))
-                    stacked = constit_branches
+                if self.params['stack_constits'] and not self.params['stack_jets']:
+                    unstacked = np.concatenate((event_branches, jet_branches, onehot_branches))
+                elif self.params['stack_constits'] and self.params['stack_jets']:
+                    unstacked = np.concatenate((event_branches, onehot_branches))
                 else:
                     unstacked = np.concatenate((constit_branches, jet_branches, event_branches, onehot_branches))
-                    stacked = []
 
                 # Get random seed for our shuffles
                 rng_seed = np.random.default_rng()
@@ -284,20 +284,20 @@ class SetBuilder:
                     sig_var = sig[var][:num_sig_jets,...]
                     bkg_var = bkg[var][:num_bkg_jets,...]
                     this_var = np.concatenate((sig_var, bkg_var), axis=0)
-                    self.branch_shuffle(this_var, seed=rseed)
+                    pu.branch_shuffle(this_var, seed=rseed)
                     target[var][start_index:stop_index,...] = this_var
 
                 # Handle stacked constituent branches
-                if self.params['stack']:
-                    stack_branches = []
-                    for var in stacked:
-                        sig_var = sig[var][:num_sig_jets,...]
-                        bkg_var = bkg[var][:num_bkg_jets,...]
-                        this_var = np.concatenate((sig_var, bkg_var), axis=0)
-                        self.branch_shuffle(this_var, seed=rseed)
-                        stack_branches.append(this_var)
-                    stacked_out = np.stack(stack_branches, axis=-1)
+                if self.params['stack_constits']:
+                    stacked_out = pu.stack_branches((sig, bkg), constit_branches, seed=rseed)
                     target['constit'][start_index:stop_index,...] = stacked_out
+
+                # Handle stacked jet branches
+                if self.params['stack_jets']:
+                    for key in self.params['jet_keys']:
+                        names = [key + fld for fld in self.params['jet_fields']]
+                        jet_stacked_out = pu.stack_branches((sig_var, bkg_var), names, seed=rseed)
+                        target[key][start_index:stop_index,...] = jet_stacked_out
 
                 # Build labels branch
                 sig_labels = np.ones(num_sig_jets)
@@ -305,7 +305,7 @@ class SetBuilder:
                 labels = np.concatenate((sig_labels, bkg_labels))
 
                 # Shuffle and write labels branch
-                self.branch_shuffle(labels, seed=rseed)
+                pu.branch_shuffle(labels, seed=rseed)
                 target['labels'][start_index:stop_index] = labels
 
                 # Increment counters and close files
@@ -389,14 +389,14 @@ class SetBuilder:
 
                 # Handle stacked constituent branches
                 if self.params['stack_constits']:
-                    stacked_out = pu.stack_branches(file, constit_branches, seed=rseed)
+                    stacked_out = pu.stack_branches((file,), constit_branches, seed=rseed)
                     target['constit'][start_index:stop_index,...] = stacked_out
 
                 # Handle stacked jet branches
                 if self.params['stack_jets']:
                     for key in self.params['jet_keys']:
                         names = [key + fld for fld in self.params['jet_fields']]
-                        jet_stacked_out = pu.stack_branches(file, names, seed=rseed)
+                        jet_stacked_out = pu.stack_branches((file,), names, seed=rseed)
                         target[key][start_index:stop_index,...] = jet_stacked_out
 
                 # Increment counters and close file
