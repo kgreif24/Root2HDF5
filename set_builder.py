@@ -167,28 +167,39 @@ class SetBuilder:
                 n_jets = self.n_test
 
             # Find shapes of data sets
-            if self.params['stack']:
+            if self.params['stack_constits']:
                 constit_shape = (n_jets, max_constits, len(constit_branches))
             else:
                 constit_shape = (n_jets, max_constits)
-            jet_shape = (n_jets,)
+            
+            if self.params['stack_jets']:
+                jet_shape = (n_jets, len(self.params['jet_fields']))
+            else:
+                jet_shape = (n_jets,)
+
+            event_shape = (n_jets,)
+
             # For now hardcoded to assume constituent taste is only onehot branch
             onehot_shape = (n_jets, max_constits, 3)
 
             # Constituents
-            if self.params['stack']:
+            if self.params['stack_constits']:
                 file.create_dataset('constit', constit_shape, dtype='f4')
             else:
                 for var in constit_branches:
                     file.create_dataset(var, constit_shape, dtype='f4')
 
             # Jet information
-            for var in jet_branches:
-                file.create_dataset(var, jet_shape, dtype='f4')
+            if self.params['stack_jets']:
+                for key in self.params['jet_keys']:
+                    file.create_dataset(key, jet_shape, dtype='f4')
+            else: 
+                for var in jet_branches:
+                    file.create_dataset(var, jet_shape, dtype='f4')
 
             # Event information
             for var in event_branches:
-                file.create_dataset(var, jet_shape, dtype='f4')
+                file.create_dataset(var, event_shape, dtype='f4')
 
             # One hot information
             for var in onehot_branches:
@@ -196,13 +207,15 @@ class SetBuilder:
 
             # Labels
             if self.run_bkg:
-                file.create_dataset('labels', jet_shape, dtype='i4')
+                file.create_dataset('labels', event_shape, dtype='i4')
 
             # Attributes
             file.attrs.create("num_jets", n_jets)
             file.attrs.create("num_cons", len(constit_branches))
             file.attrs.create("num_jet_features", len(jet_branches))
             file.attrs.create("jet", jet_branches)
+            file.attrs.create("jet_fields", self.params['jet_fields'])
+            file.attrs.create("jet_keys", self.params['jet_keys'])
             file.attrs.create("constit", constit_branches)
             file.attrs.create("event", event_branches)
             file.attrs.create("onehot", onehot_branches)
@@ -356,12 +369,13 @@ class SetBuilder:
                 constit_branches = file.attrs.get('constit')
                 jet_branches = file.attrs.get('jet')
                 event_branches = file.attrs.get('event')
-                if self.params['stack']:
-                    unstacked = np.concatenate((jet_branches, event_branches, onehot_branches))
-                    stacked = constit_branches
+                onehot_branches = file.attrs.get('onehot')
+                if self.params['stack_constits'] and not self.params['stack_jets']:
+                    unstacked = np.concatenate((event_branches, jet_branches, onehot_branches))
+                elif self.params['stack_constits'] and self.params['stack_jets']:
+                    unstacked = np.concatenate((event_branches, onehot_branches))
                 else:
                     unstacked = np.concatenate((constit_branches, jet_branches, event_branches, onehot_branches))
-                    stacked = []
 
                 # Get random seed for our shuffles
                 rng_seed = np.random.default_rng()
@@ -370,20 +384,20 @@ class SetBuilder:
                 # Shuffle, and write each branch
                 for var in unstacked:
                     this_var = file[var][...]
-                    self.branch_shuffle(this_var, seed=rseed)
+                    pu.branch_shuffle(this_var, seed=rseed)
                     target[var][start_index:stop_index,...] = this_var
 
                 # Handle stacked constituent branches
-                if self.params['stack']:
-                    stack_branches = []
-                    for var in stacked:
-                        sig_var = sig[var][:num_sig_jets,...]
-                        bkg_var = bkg[var][:num_bkg_jets,...]
-                        this_var = np.concatenate((sig_var, bkg_var), axis=0)
-                        self.branch_shuffle(this_var, seed=rseed)
-                        stack_branches.append(this_var)
-                    stacked_out = np.stack(stack_branches, axis=-1)
+                if self.params['stack_constits']:
+                    stacked_out = pu.stack_branches(file, constit_branches, seed=rseed)
                     target['constit'][start_index:stop_index,...] = stacked_out
+
+                # Handle stacked jet branches
+                if self.params['stack_jets']:
+                    for key in self.params['jet_keys']:
+                        names = [key + fld for fld in self.params['jet_fields']]
+                        jet_stacked_out = pu.stack_branches(file, names, seed=rseed)
+                        target[key][start_index:stop_index,...] = jet_stacked_out
 
                 # Increment counters and close file
                 start_index = stop_index
@@ -398,26 +412,11 @@ class SetBuilder:
             # Derive training weights
             if self.params['weight_func'] != None and not d['test']:
                 print("Calculating training weights")
-                pu.calc_weights(target, self.params['weight_func'])
+                pu.calc_weights_solo(target, self.params['weight_func'])
 
         # End schedule loop
 
 
-    def branch_shuffle(self, branch, seed=42):
-        """ branch_shuffle - This shuffle takes in a dataset represented by a numpy array,
-        as well as a seed for a random generator. It will then shuffle the branch using numpys
-        random shuffle routine.
-
-        Arguments:
-        branch (array) - The array to shuffle along the first dimension
-        seed (int) - The random seed to use in shuffling
-
-        Returns:
-        None - array is shuffled in place
-        """
-
-        rng = np.random.default_rng(seed)
-        rng.shuffle(branch, axis=0)
 
     def run(self):
         """ run - The main function for the SetBuilder class. It just calls

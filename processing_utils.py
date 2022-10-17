@@ -11,7 +11,7 @@ import numpy as np
 import uproot
 import h5py
 import awkward as ak
-# import hep_ml.reweight as reweight
+import hep_ml.reweight as reweight
 
 
 def find_raw_len(filename, test_branch, flatten):
@@ -194,10 +194,10 @@ def calc_weights_solo(file, weight_func):
 
     # Pull info from file
     num_jets = file.attrs.get("num_jets")
-    pt = file['jet_pt'][:]
+    pt = file['jet_true'][:,3]
 
     # Calculate weights
-    weights = weight_func(bkg_pt, sig_pt)
+    weights = weight_func(pt)
 
     # Create new dataset in file
     weight_shape = (num_jets,)
@@ -409,3 +409,44 @@ def encode_onehot(y, n_classes):
     categorical = np.reshape(categorical, output_shape)
 
     return categorical
+
+
+def stack_branches(file, branches, **kwargs):
+    """ stack_branches - This function pull the branches lited in the "branches"
+    argument, and stacks them along a new axis. The new axis is added to the end
+    of the return array. Shuffling is applied uniformly to each branch
+
+    Arguments:
+    file (h5 file object) - The file we wish to pull data from and stack
+    branches (list of string) - The branches we wish to stack
+    seed (int) - kwargs passed to branch_shuffle function
+
+    Returns:
+    (array) - Numpy array of the stacked data
+    """
+
+    data_list = []
+
+    for var in branches:
+        data = file[var][...]
+        branch_shuffle(data, **kwargs)
+        data_list.append(data)
+    
+    return np.stack(data_list, axis=-1)  
+
+
+def branch_shuffle(branch, seed=42):
+    """ branch_shuffle - This shuffle takes in a dataset represented by a numpy array,
+    as well as a seed for a random generator. It will then shuffle the branch using numpys
+    random shuffle routine.
+
+    Arguments:
+    branch (array) - The array to shuffle along the first dimension
+    seed (int) - The random seed to use in shuffling
+
+    Returns:
+    None - array is shuffled in place
+    """
+
+    rng = np.random.default_rng(seed)
+    rng.shuffle(branch, axis=0)
