@@ -430,6 +430,22 @@ class SetBuilder:
                 print("Calculating training weights")
                 pu.calc_weights_solo(target, self.params['weight_func'])
 
+            # Calculate standards if needed
+            if self.params['standards']:
+                print("Calculating standards")
+
+                if self.params['stack_constits']:
+                    pu.calc_standards_stack(target, 'constit')
+                else:
+                    pu.calc_standards(target, self.params['constit_branches'], 'constit')
+
+                for key in self.params['jet_keys']:
+                    if self.params['stack_jets']:
+                        pu.calc_standards_stack(target, key)
+                    else:
+                        names = [key + fld for fld in self.params['jet_fields']]
+                        pu.calc_standards(target, names, key)
+
         # End schedule loop
 
 
