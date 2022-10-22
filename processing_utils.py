@@ -537,10 +537,10 @@ def calc_standards_stack(file, branch, max_jets=1000000):
     stddevs = np.zeros(branch_shape[-1])
 
     # Loop through dimensions
-    for i, br in range(branch_shape[-1]):
+    for i in range(branch_shape[-1]):
 
         # Pull and flatten dimension
-        var = np.ravel(file[br][:max_jets,...,i])
+        var = np.ravel(file[branch][:max_jets,...,i])
 
         # Find means and stddevs
         means[i] = var.mean()
