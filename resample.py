@@ -14,8 +14,6 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--infile', type=str, required=True,
                     help='The input file name')
-parser.add_argument('--branch', type=str, required=True,
-                    help='The name of the jet pt branch')
 parser.add_argument('--n_jets', type=int, required=True,
                     help='The number of jets to have in the final set')
 parser.add_argument('--outfile', type=str, required=True,

@@ -11,7 +11,7 @@ import numpy as np
 import uproot
 import h5py
 import awkward as ak
-# import hep_ml.reweight as reweight
+import hep_ml.reweight as reweight
 
 
 def find_raw_len(filename, test_branch, flatten):
@@ -343,6 +343,30 @@ def trans_cuts(batch):
     cuts.append(batch['fjet_pt'] > 350000)
     cuts.append(batch['fjet_numConstits'] >= 3)
     cuts.append(batch['fjet_m'] > 40)
+
+    # Take and of all cuts
+    total_cuts = np.logical_and.reduce(cuts)
+
+    return total_cuts
+
+
+def calib_cuts(batch):
+    """ calib_cuts - Implements the cuts used in the jet calibration project.
+    They just require jet eta less than 2.5.
+
+    Arguments:
+    batch (obj or dict) - The batch of jets for which to computer cuts
+
+    Returns:
+    (array) - Boolean array representing total cuts
+    """
+
+    # Assemble boolean arrays
+    eta = batch['jet_eta']
+    if 'var' in str(ak.type(eta)):
+        eta = ak.flatten(eta)
+    cuts = []
+    cuts.append(abs(eta) < 2.5)
 
     # Take and of all cuts
     total_cuts = np.logical_and.reduce(cuts)
