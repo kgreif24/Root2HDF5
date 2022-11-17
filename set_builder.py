@@ -60,6 +60,12 @@ class SetBuilder:
         else:
             self.run_bkg = False
 
+        # Apply cut on file lists if needed
+        if setup_dict['n_files'] != -1:
+            cut = setup_dict['n_files']
+            sig_list = sig_list[:cut]
+            bkg_list = bkg_list[:cut]
+
         # If statements for covering 4 possible configurations for .h5 files
         # If we are making train / test split and including background
         if (setup_dict['test_name'] != None) and (self.run_bkg):
