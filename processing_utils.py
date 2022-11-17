@@ -3,7 +3,7 @@ that will be used to process data in the root2hdf.py script.
 
 Author: Kevin Greif
 python3
-Last updated 11/5/21
+Last updated 10/22/22
 """
 
 
@@ -440,8 +440,8 @@ def stack_branches(file_list, branches, **kwargs):
         branch_shuffle(whole_data, **kwargs)
 
         data_list.append(whole_data)
-    
-    return np.stack(data_list, axis=-1)  
+
+    return np.stack(data_list, axis=-1)
 
 
 def branch_shuffle(branch, seed=42):
@@ -459,3 +459,93 @@ def branch_shuffle(branch, seed=42):
 
     rng = np.random.default_rng(seed)
     rng.shuffle(branch, axis=0)
+
+
+def calc_standards(file, branches, name, max_jets=1000000):
+    """ calc_standards - Function takes in a h5py file object, and loops through
+    all data branches in the file and calculates the std. dev. and mean
+    for each of the branches. These constants can then be used to standardize
+    model inputs. Standards are written as attributes of the h5py file.
+
+    This function is for unstacked branches.
+
+    Arguments:
+    file (h5py obj) - The h5py file object, must be writeable
+    branches (list of str) - List of the branches for which we want standards
+    name (str) - The name of the attribute to add to file
+    max_jets (int) - The maximum # of jets to consider in calculating avg
+    and std. dev.
+
+    Returns:
+    None
+    """
+
+    # Correct max jets if necessary
+    num_jets = file.attrs.get('num_jets')
+    if num_jets < max_jets:
+        max_jets = num_jets
+
+    # Initialize means and stddevs arrays
+    means = np.zeros(len(branches))
+    stddevs = np.zeros(len(branches))
+
+    # Loop through branches
+    for i, br in enumerate(branches):
+
+        # Pull and flatten branch
+        var = np.ravel(file[br][:max_jets, ...])
+
+        # Find means and stddevs
+        means[i] = var.mean()
+        stddevs[i] = var.std()
+
+    # Write results to file attrs
+    file.attrs.create(name + "_means", means)
+    file.attrs.create(name + "_stddevs", stddevs)
+
+
+def calc_standards_stack(file, branch, max_jets=1000000):
+    """ calc_standards - Function takes in a h5py file object, and calculates
+    the means and stddevs for each dimension of a stacked branch.
+    These constants can then be used to standardize
+    model inputs. Standards are written as attributes of the h5py file.
+
+    This function is for a stacked branch.
+
+    Attribute will be named after the branch
+
+    Arguments:
+    file (h5py obj) - The h5py file object, must be writeable
+    branch (str) - Name of the branch
+    max_jets (int) - The maximum # of jets to consider in calculating mean
+    and std. dev.
+
+    Returns:
+    None
+    """
+
+    # Correct max jets if necessary
+    num_jets = file.attrs.get('num_jets')
+    if num_jets < max_jets:
+        max_jets = num_jets
+
+    # Get shape of branch
+    branch_shape = file[branch].shape
+
+    # Initialize means and stddevs arrays
+    means = np.zeros(branch_shape[-1])
+    stddevs = np.zeros(branch_shape[-1])
+
+    # Loop through dimensions
+    for i in range(branch_shape[-1]):
+
+        # Pull and flatten dimension
+        var = np.ravel(file[branch][:max_jets,...,i])
+
+        # Find means and stddevs
+        means[i] = var.mean()
+        stddevs[i] = var.std()
+
+    # Write results to file attrs
+    file.attrs.create(branch + "_means", means)
+    file.attrs.create(branch + "_stddevs", stddevs)

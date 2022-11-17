@@ -21,7 +21,8 @@ build_dict = {
     'stack_jets': False,
     'jet_fields': ['_px', '_py', '_pz', '_pt', '_E'],
     'jet_keys': ['jet', 'jet_Pileup', 'jet_JES', 'jet_true'],
-    'weight_func': pu.match_weights
+    'weight_func': pu.flat_weights,
+    'standards': False
 }
 
 sb = SetBuilder(build_dict)

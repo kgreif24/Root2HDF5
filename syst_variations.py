@@ -4,13 +4,8 @@ the root converter class to produce data set with applied systematics.
 
 Currently, the variations implemented are the EM scale cluster uncertainties.
 
-For now, we hard code the names of constituent level branches in the jet
-batches. (e.g. 'fjet_clus_E'). Or we should, refactor this!
-
-Large amounts of duplicated code currently in this file. Refactoring needed!
-
 Author: Kevin Greif
-Last updated 7/5/22
+Last updated 7/19/22
 python3
 """
 
@@ -20,7 +15,7 @@ import awkward as ak
 import numpy as np
 from tqdm import tqdm
 
-def reco_efficiency(jets, uncert_map, constit_branches):
+def reco_efficiency(jets, uncert_map):
     """ reco_efficiency - This function applies the cluster reconstruction
     efficiency systematic variation to the constituent level inputs contained
     in the jet batch.
@@ -29,8 +24,6 @@ def reco_efficiency(jets, uncert_map, constit_branches):
     jets (dict): The jet batch, almost always as defined in the root converter
     class after cuts have been applied. See root_converter.py for details.
     uncert_map (TFile): The uncertaintiy map file object loaded using PyROOT
-    constit_branches (list): The names of the constituent branches to apply
-    variation on.
 
     Returns:
     (dict): A dictionary containing the constituent level quantities with
@@ -157,6 +150,10 @@ def reco_efficiency(jets, uncert_map, constit_branches):
     keep = builder.snapshot()
 
     # Index all constituent level branches, dropping the required constituents
+    constit_branches = [
+        'fjet_clus_pt', 'fjet_clus_eta', 'fjet_clus_phi', 'fjet_clus_E',
+        'fjet_clus_taste'
+    ]
     var_dict = {kw: jets[kw][keep] for kw in constit_branches}
 
     print("For this batch we dropped {0:f} percent of constituents".format(dropped_counter * 100 / total_counter))
@@ -164,7 +161,7 @@ def reco_efficiency(jets, uncert_map, constit_branches):
     return var_dict
 
 
-def energy_scale(jets, uncert_map, constit_branches, direction='up'):
+def energy_scale(jets, uncert_map, direction='up'):
     """ energy_scale - This function applies the cluster energy scale
     variation to the constituent level inputs contained in the jet batch.
 
@@ -172,8 +169,6 @@ def energy_scale(jets, uncert_map, constit_branches, direction='up'):
     jets (dict): The jet batch, almost always as defined in the root converter
     class after cuts have been applied. See root_converter.py for details.
     uncert_map (TFile): The uncertaintiy map file object loaded using PyROOT
-    constit_branches (list): The names of the constituent branches to apply
-    variation on.
     direction (string): Either 'up' or 'down' to control which direction we
     apply the systematic variation.
 
@@ -314,7 +309,7 @@ def energy_scale(jets, uncert_map, constit_branches, direction='up'):
     # Return dictionary with varied pT and energy information
     return {'fjet_clus_pt': var_pt, 'fjet_clus_E': var_en}
 
-def energy_res(jets, uncert_map, constit_branches):
+def energy_res(jets, uncert_map):
     """ energy_res - This function applies the cluster energy resolution
     variation to the constituent level inputs.
 
@@ -322,8 +317,6 @@ def energy_res(jets, uncert_map, constit_branches):
     jets (dict): The jet batch, almost always as defined in the root converter
     class after cuts have been applied. See root_converter.py for details.
     uncert_map (TFile): The uncertaintiy map file object loaded using PyROOT
-    constit_branches (list): The names of the constituent branches to apply
-    variation on.
     direction (string): Either 'up' or 'down' to control which direction we
     apply the systematic variation.
 

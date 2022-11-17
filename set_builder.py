@@ -3,7 +3,7 @@
 calculate training weights, and perform simple standardizations (to be added!).
 
 Author: Kevin Greif
-Last updated 9/26/22
+Last updated 10/22/22
 python3
 """
 
@@ -177,7 +177,7 @@ class SetBuilder:
                 constit_shape = (n_jets, max_constits, len(constit_branches))
             else:
                 constit_shape = (n_jets, max_constits)
-            
+
             if self.params['stack_jets']:
                 jet_shape = (n_jets, len(self.params['jet_fields']))
             else:
@@ -199,7 +199,7 @@ class SetBuilder:
             if self.params['stack_jets']:
                 for key in self.params['jet_keys']:
                     file.create_dataset(key, jet_shape, dtype='f4')
-            else: 
+            else:
                 for var in jet_branches:
                     file.create_dataset(var, jet_shape, dtype='f4')
 
@@ -326,6 +326,22 @@ class SetBuilder:
                 print("Calculating training weights")
                 pu.calc_weights(target, self.params['weight_func'])
 
+            # Calculate standards if needed
+            if self.params['standards']:
+                print("Calculating standards")
+
+                if self.params['stack_constits']:
+                    pu.calc_standards_stack(target, 'constit')
+                else:
+                    pu.calc_standards(target, self.params['constit_branches'], 'constit')
+
+                for key in self.params['jet_keys']:
+                    if self.params['stack_jets']:
+                        pu.calc_standards_stack(target, key)
+                    else:
+                        names = [key + fld for fld in self.params['jet_fields']]
+                        pu.calc_standards(target, names, key)
+
             # Finish by printing summary of how many jets were written to file
             print("We wrote", stop_index, "jets to target file")
             target.attrs.modify("num_jets", stop_index)
@@ -419,6 +435,22 @@ class SetBuilder:
             if self.params['weight_func'] != None and not d['test']:
                 print("Calculating training weights")
                 pu.calc_weights_solo(target, self.params['weight_func'])
+
+            # Calculate standards if needed
+            if self.params['standards']:
+                print("Calculating standards")
+
+                if self.params['stack_constits']:
+                    pu.calc_standards_stack(target, 'constit')
+                else:
+                    pu.calc_standards(target, self.params['constit_branches'], 'constit')
+
+                for key in self.params['jet_keys']:
+                    if self.params['stack_jets']:
+                        pu.calc_standards_stack(target, key)
+                    else:
+                        names = [key + fld for fld in self.params['jet_fields']]
+                        pu.calc_standards(target, names, key)
 
         # End schedule loop
 
