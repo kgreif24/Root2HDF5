@@ -161,6 +161,7 @@ class SetBuilder:
         jet_branches = ref.attrs.get('jet')
         event_branches = ref.attrs.get('event')
         onehot_branches = ref.attrs.get('onehot')
+        image_branches = ref.attrs.get('image')
         max_constits = ref.attrs.get('max_constits')
 
         # Loop through process list
@@ -188,6 +189,10 @@ class SetBuilder:
             # For now hardcoded to assume constituent taste is only onehot branch
             onehot_shape = (n_jets, max_constits, 3)
 
+            # Hardcode image shape, this should not change given what is stored are 
+            # bin coordinates in 64x64 grid
+            image_shape = (n_jets, max_constits, 2)
+
             # Constituents
             if self.params['stack_constits']:
                 file.create_dataset('constit', constit_shape, dtype='f4')
@@ -211,6 +216,10 @@ class SetBuilder:
             for var in onehot_branches:
                 file.create_dataset(var, onehot_shape, dtype='i4')
 
+            # Image information
+            for var in image_branches:
+                file.create_dataset(var, image_shape, dtype='i4')
+
             # Labels
             if self.run_bkg:
                 file.create_dataset('labels', event_shape, dtype='i4')
@@ -225,6 +234,7 @@ class SetBuilder:
             file.attrs.create("constit", constit_branches)
             file.attrs.create("event", event_branches)
             file.attrs.create("onehot", onehot_branches)
+            file.attrs.create("image", image_branches)
             file.attrs.create("max_constits", max_constits)
 
 
@@ -274,12 +284,13 @@ class SetBuilder:
                 jet_branches = sig.attrs.get('jet')
                 event_branches = sig.attrs.get('event')
                 onehot_branches = sig.attrs.get('onehot')
+                image_branches = sig.attrs.get('image')
                 if self.params['stack_constits'] and not self.params['stack_jets']:
-                    unstacked = np.concatenate((event_branches, jet_branches, onehot_branches))
+                    unstacked = np.concatenate((event_branches, jet_branches, onehot_branches, image_branches))
                 elif self.params['stack_constits'] and self.params['stack_jets']:
-                    unstacked = np.concatenate((event_branches, onehot_branches))
+                    unstacked = np.concatenate((event_branches, onehot_branches, image_branches))
                 else:
-                    unstacked = np.concatenate((constit_branches, jet_branches, event_branches, onehot_branches))
+                    unstacked = np.concatenate((constit_branches, jet_branches, event_branches, onehot_branches, image_branches))
 
                 # Get random seed for our shuffles
                 rng_seed = np.random.default_rng()

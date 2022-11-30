@@ -11,7 +11,7 @@ python3
 import numpy as np
 import h5py
 import uproot
-import ROOT
+# import ROOT
 import awkward as ak
 import processing_utils as pu
 import preprocessing as pp
@@ -113,6 +113,10 @@ class RootConverter:
                 oh_size = (max_size, self.params['max_constits'], nc)
                 file.create_dataset(br, oh_size, maxshape=oh_size, dtype='i4')
 
+            for br in self.params['images_branch']:
+                img_size = (max_size, 200, 2)
+                file.create_dataset(br, img_size, maxshape=img_size, dtype='i4')
+
             for br in self.params['event_branches']:
                 file.create_dataset(br, jet_size, maxshape=jet_size, dtype='f4')
 
@@ -121,6 +125,7 @@ class RootConverter:
             file.attrs.create('constit', self.params['t_constit_branches'])
             file.attrs.create('onehot', self.params['t_onehot_branches'])
             file.attrs.create('jet', self.params['t_jet_branches'])
+            file.attrs.create('image', self.params['images_branch'])
             file.attrs.create('event', self.params['event_branches'])
             file.attrs.create('max_constits', self.params['max_constits'])
 
@@ -167,6 +172,7 @@ class RootConverter:
             source_branches = keep_branches + self.params['cut_branches']
             t_non_constit_branches = (
                 self.params['t_jet_branches'] + self.params['event_branches']
+                + self.params['images_branch']
             )
             target_branches = (
                 t_non_constit_branches + self.params['t_constit_branches']
@@ -216,10 +222,11 @@ class RootConverter:
 
                 #################### Fix Units ######################
 
-                # Send pT, E, m branches to GeV
-                for kw, branch in batch_data.items():
-                    if any(s in kw for s in ['_pt', '_E', '_m']):
-                        batch_data[kw] = branch / 1000 
+                # If unit multiplier is not one, multiply all dimensionful branches
+                if self.params['unit_multiplier'] != 1:
+                    for kw, branch in batch_data.items():
+                        if any(s in kw for s in ['_pt', '_E', '_m']):
+                            batch_data[kw] = branch * self.params['unit_multiplier'] 
 
                 #################### Apply Systs ####################
 
@@ -270,6 +277,27 @@ class RootConverter:
                     ohe[mask_onehot] = 0
 
                     batch_data[name] = ohe
+
+                ####################### Images ######################
+
+                # Loop through images branch lis
+                for name in self.params['images_branch']:
+
+                    # Use np.digitize to produce arrays that give indeces of each constituent
+                    bins = np.linspace(-2, 2, 65) # 65 array length to drop overflow bins
+                    # minus one is to shift indexing such that 0th bin is [-2, ...)
+                    binned_eta = np.digitize(batch_data['fjet_clus_eta'], bins) - 1
+                    binned_phi = np.digitize(batch_data['fjet_clus_phi'], bins) - 1
+
+                    # Next need to handle overflow bins, set them to 0 or 63 as appropriate
+                    binned_eta = np.clip(binned_eta, 0, 63)
+                    binned_phi = np.clip(binned_phi, 0, 63)
+
+                    # Stack image data
+                    batch_images = np.stack((binned_eta, binned_phi), axis=-1)
+
+                    # Add images to batch data
+                    batch_data[name] = batch_images
 
                 ####################### Jet + Event ########################
 

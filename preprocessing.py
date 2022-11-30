@@ -199,6 +199,29 @@ def log_norm(jets, name, sort_indeces, zero_indeces, max_constits=200, **kwargs)
 
     # Return results
     return log_cons_sort, lognorm_cons_sort
+ 
+
+def zero_mass(jets):
+    """ zero_mass - A function for setting the constituent energy values to pT * cosh(eta)
+    This effectively zeros the mass of all constituents.
+
+    Arguments:
+    jets (dict) - Dictionary of awkward arrays containing the constituent level information
+    for pT and eta
+
+    Returns:
+    (dict) - Derived constituent energy information, packaged in a python dict with the 
+    key 'fjet_clus_E'
+    """
+
+    # Pull pT and eta
+    cons_pt = jets['fjet_clus_pt']
+    cons_eta = jets['fjet_clus_eta']
+
+    # Calculate energy
+    cons_en = cons_pt * np.cosh(cons_eta)
+
+    return {'fjet_clus_E': cons_en}
 
 
 def simple_angular(jets, sort_indeces, zero_indeces, max_constits=200, **kwargs):
