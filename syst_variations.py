@@ -165,6 +165,8 @@ def energy_scale(jets, uncert_map, direction='up'):
     """ energy_scale - This function applies the cluster energy scale
     variation to the constituent level inputs contained in the jet batch.
 
+    Function assumes pT and energy are given in MeV
+
     Arguments:
     jets (dict): The jet batch, almost always as defined in the root converter
     class after cuts have been applied. See root_converter.py for details.
@@ -182,8 +184,8 @@ def energy_scale(jets, uncert_map, direction='up'):
     cluster_means = uncert_map.Get('Mean')
 
     # Pull pt and energy
-    pt = jets['fjet_clus_pt']
-    en = jets['fjet_clus_E']
+    pt = jets['fjet_clus_pt'] / 1000
+    en = jets['fjet_clus_E'] / 1000
 
     # Loop over jet constituents
     # Instead of building an awkard array with boolean values, we directly
@@ -224,8 +226,8 @@ def energy_scale(jets, uncert_map, direction='up'):
         if cons_taste != 1:
 
             # Write nominal, remembering to convert back to MeV
-            p_builder.append(cons_pt)
-            E_builder.append(cons_en)
+            p_builder.append(1000 * cons_pt)
+            E_builder.append(1000 * cons_en)
 
         # Else, we apply systematic variation
         else:
@@ -278,9 +280,9 @@ def energy_scale(jets, uncert_map, direction='up'):
             # print("\nOld pT: {0:.4f}\tOld en: {1:.4f}".format(cons_pt, cons_en))
             # print("New pT: {0:0.4f}\tNew en: {1:.4f}".format(ptces, Eces))
 
-            # Add new values to array builders
-            p_builder.append(ptces)
-            E_builder.append(Eces)
+            # Add new values to array builders, remembering to convert back to MeV
+            p_builder.append(1000 * ptces)
+            E_builder.append(1000 * Eces)
 
         ## Increment consituent counter
         constit_counter += 1
@@ -311,14 +313,13 @@ def energy_scale(jets, uncert_map, direction='up'):
 
 def energy_res(jets, uncert_map):
     """ energy_res - This function applies the cluster energy resolution
-    variation to the constituent level inputs.
+    variation to the constituent level inputs. Assumes constituent pT and
+    E values are given in units of MeV
 
     Arguments:
     jets (dict): The jet batch, almost always as defined in the root converter
     class after cuts have been applied. See root_converter.py for details.
     uncert_map (TFile): The uncertaintiy map file object loaded using PyROOT
-    direction (string): Either 'up' or 'down' to control which direction we
-    apply the systematic variation.
 
     Returns:
     (dict): A dictionary containing the constituent level quantities with
@@ -330,8 +331,8 @@ def energy_res(jets, uncert_map):
     cluster_rms = uncert_map.Get('RMS')
 
     # Pull pt and energy
-    pt = jets['fjet_clus_pt']
-    en = jets['fjet_clus_E']
+    pt = jets['fjet_clus_pt'] / 1000
+    en = jets['fjet_clus_E'] / 1000
 
     # Instead of building an awkard array with boolean values, we directly
     # build the new pT and energy values for the constituents
@@ -371,8 +372,8 @@ def energy_res(jets, uncert_map):
         if cons_taste != 1:
 
             # Write nominal, converting back to MeV
-            p_builder.append(cons_pt)
-            E_builder.append(cons_en)
+            p_builder.append(1000 * cons_pt)
+            E_builder.append(1000 * cons_en)
 
         # Else, we apply systematic variation
         else:
@@ -421,8 +422,8 @@ def energy_res(jets, uncert_map):
             # print("New pT: {0:0.4f}\tNew en: {1:.4f}".format(ptcer, Ecer))
 
             # Add new values to array builders
-            p_builder.append(ptcer)
-            E_builder.append(Ecer)
+            p_builder.append(1000 * ptcer)
+            E_builder.append(1000 * Ecer)
 
         ## Increment consituent counter
         constit_counter += 1

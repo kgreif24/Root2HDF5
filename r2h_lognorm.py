@@ -42,8 +42,8 @@ convert_dict = {
         'fjet_clus_eta', 'fjet_clus_phi', 'fjet_clus_log_pt', 'fjet_clus_log_E',
         'fjet_clus_lognorm_pt', 'fjet_clus_lognorm_E', 'fjet_clus_dR'
     ],
-    't_onehot_branches': ['fjet_clus_taste'],
-    't_onehot_classes': [3],
+    't_onehot_branches': [],
+    't_onehot_classes': [],
     's_jet_branches': ['fjet_pt', 'fjet_eta', 'fjet_phi', 'fjet_m'],
     't_jet_branches': ['fjet_pt', 'fjet_eta', 'fjet_phi', 'fjet_m'],
     'images_branch': ['images'],

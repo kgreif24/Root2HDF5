@@ -11,7 +11,7 @@ python3
 import numpy as np
 import h5py
 import uproot
-# import ROOT
+import ROOT
 import awkward as ak
 import processing_utils as pu
 import preprocessing as pp
@@ -280,7 +280,7 @@ class RootConverter:
 
                 ####################### Images ######################
 
-                # Loop through images branch lis
+                # Loop through images branch list
                 for name in self.params['images_branch']:
 
                     # Use np.digitize to produce arrays that give indeces of each constituent
