@@ -11,17 +11,17 @@ from set_builder import SetBuilder
 import processing_utils as pu
 
 build_dict = {
-    'signal': '/DFS-L/DATA/whiteson/kgreif/JetTaggingH5/int_zprime_s2_ln/',
-    'background': '/DFS-L/DATA/whiteson/kgreif/JetTaggingH5/int_dijet_s2_ln/',
-    'n_files': 15,
-    'test_name': '/DFS-L/DATA/whiteson/kgreif/JetTaggingH5/train_s2_ln_small.h5',
-    'train_name': '/DFS-L/DATA/whiteson/kgreif/JetTaggingH5/test_s2_ln_small.h5',
+    'signal': '/DFS-L/DATA/whiteson/kgreif/JetTaggingH5/int_zprime_raw_nominal/',
+    'background': '/DFS-L/DATA/whiteson/kgreif/JetTaggingH5/int_dijet_raw_nominal/',
+    'n_files': -1,
+    'test_name': '/DFS-L/DATA/whiteson/kgreif/JetTaggingH5/test_raw_nominal.h5',
+    'train_name': '/DFS-L/DATA/whiteson/kgreif/JetTaggingH5/train_raw_nominal.h5',
     'test_frac': 0.1,
-    'stack_constits': True,
+    'stack_constits': False,
     'stack_jets': False,
-    'jet_fields': ['_px', '_py', '_pz', '_pt', '_E'],
-    'jet_keys': ['jet', 'jet_Pileup', 'jet_JES', 'jet_true'],
-    'weight_func': pu.flat_weights,
+    'jet_fields': ['_pt', '_eta', '_phi', '_m'],
+    'jet_keys': ['fjet'],
+    'weight_func': pu.match_weights,
     'standards': False
 }
 

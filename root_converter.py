@@ -4,7 +4,7 @@ and converting them into the h5 file format. A single dataset can
 subsequently be built by shuffling the .h5 output files.
 
 Author: Kevin Greif
-Last updated 9/26/2022
+Last updated 1/29/2023
 python3
 """
 
@@ -73,7 +73,6 @@ class RootConverter:
             print("Due to rounding we will instead keep", self.params['total'], "jets")
 
         # Lastly load cluster systematics map, if needed.
-        # Simply hard code the location of the systematics map on gpatlas
         if self.params['syst_func'] != None:
             self.syst_map = ROOT.TFile(self.params['syst_loc'], 'read')
 
@@ -103,15 +102,16 @@ class RootConverter:
             # Create all datasets in file
             constits_size = (max_size, self.params['max_constits'])
             for br in self.params['t_constit_branches']:
-                file.create_dataset(br, constits_size, maxshape=constits_size, dtype='f4')
+                # If we are dealing with taste info, can make the dataset of type int
+                if 'taste' in br:
+                    file.create_dataset(br, constits_size, maxshape=constits_size, dtype='i4')
+                # Else we should use type float32
+                else:
+                    file.create_dataset(br, constits_size, maxshape=constits_size, dtype='f4')
 
             jet_size = (max_size,)
             for br in self.params['t_jet_branches']:
                 file.create_dataset(br, jet_size, maxshape=jet_size, dtype='f4')
-
-            for br, nc in zip(self.params['t_onehot_branches'], self.params['t_onehot_classes']):
-                oh_size = (max_size, self.params['max_constits'], nc)
-                file.create_dataset(br, oh_size, maxshape=oh_size, dtype='i4')
 
             for br in self.params['images_branch']:
                 img_size = (max_size, 200, 2)
@@ -123,7 +123,6 @@ class RootConverter:
             # Set file attributes
             file.attrs.create('num_jets', 0, dtype='i4')
             file.attrs.create('constit', self.params['t_constit_branches'])
-            file.attrs.create('onehot', self.params['t_onehot_branches'])
             file.attrs.create('jet', self.params['t_jet_branches'])
             file.attrs.create('image', self.params['images_branch'])
             file.attrs.create('event', self.params['event_branches'])
@@ -176,7 +175,6 @@ class RootConverter:
             )
             target_branches = (
                 t_non_constit_branches + self.params['t_constit_branches']
-                + self.params['t_onehot_branches']
             )
 
             # Use uproot.iterate to loop through files
@@ -257,26 +255,6 @@ class RootConverter:
                                                          small_pt_indeces,
                                                          self.params)
                 batch_data.update(cons_batch)
-
-                ################## One Hot Encoding ##################
-
-                # Call encode_onehot processing util if necessary
-                for name, nc in zip(self.params['t_onehot_branches'], self.params['t_onehot_classes']):
-
-                    # Pull data from branch and convert to numpy
-                    data = batch_data[name]
-                    data = ak.pad_none(data, self.params['max_constits'], axis=1, clip=True)
-                    data = ak.to_numpy(ak.fill_none(data, 0, axis=1))
-
-                    # Call encoding util
-                    ohe = pu.encode_onehot(data, nc)
-
-                    # Mask all empty consituent slots
-                    extra_zeros = np.zeros(len(small_pt_indeces[0]), dtype=np.int32)
-                    mask_onehot = small_pt_indeces + (extra_zeros,)
-                    ohe[mask_onehot] = 0
-
-                    batch_data[name] = ohe
 
                 ####################### Images ######################
 
@@ -415,10 +393,6 @@ class RootConverter:
 
             for branch in self.params['event_branches']:
                 targ_file[branch].resize(hl_size)
-
-            for branch, nc in zip(self.params['t_onehot_branches'], self.params['t_onehot_classes']):
-                onehot_size = (self.start_index[file_num], self.params['max_constits'], nc)
-                targ_file[branch].resize(onehot_size)
 
 
     def run(self, **kwargs):

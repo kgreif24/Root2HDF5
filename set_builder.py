@@ -3,7 +3,7 @@
 calculate training weights, and perform simple standardizations (to be added!).
 
 Author: Kevin Greif
-Last updated 10/22/22
+Last updated 1/30/23
 python3
 """
 
@@ -157,12 +157,16 @@ class SetBuilder:
 
         # Open reference file
         ref = h5py.File(self.schedule[0]['sig'][0], 'r')
-        constit_branches = ref.attrs.get('constit')
-        jet_branches = ref.attrs.get('jet')
-        event_branches = ref.attrs.get('event')
-        onehot_branches = ref.attrs.get('onehot')
-        image_branches = ref.attrs.get('image')
-        max_constits = ref.attrs.get('max_constits')
+        self.constit_branches = ref.attrs.get('constit')
+        if 'taste' in '\t'.join(self.constit_branches):
+            self.constit_branches = [br for br in self.constit_branches if not 'taste' in br]
+            self.taste_branches = ['fjet_clus_taste']
+        else:
+            self.taste_branches = []
+        self.jet_branches = ref.attrs.get('jet')
+        self.event_branches = ref.attrs.get('event')
+        self.image_branches = ref.attrs.get('image')
+        self.max_constits = ref.attrs.get('max_constits')
 
         # Loop through process list
         for i, file in enumerate(out_list):
@@ -175,9 +179,11 @@ class SetBuilder:
 
             # Find shapes of data sets
             if self.params['stack_constits']:
-                constit_shape = (n_jets, max_constits, len(constit_branches))
+                constit_shape = (n_jets, self.max_constits, len(self.constit_branches))
             else:
-                constit_shape = (n_jets, max_constits)
+                constit_shape = (n_jets, self.max_constits)
+
+            taste_shape = (n_jets, self.max_constits)
 
             if self.params['stack_jets']:
                 jet_shape = (n_jets, len(self.params['jet_fields']))
@@ -186,38 +192,35 @@ class SetBuilder:
 
             event_shape = (n_jets,)
 
-            # For now hardcoded to assume constituent taste is only onehot branch
-            onehot_shape = (n_jets, max_constits, 3)
-
             # Hardcode image shape, this should not change given what is stored are 
             # bin coordinates in 64x64 grid
-            image_shape = (n_jets, max_constits, 2)
+            image_shape = (n_jets, self.max_constits, 2)
 
             # Constituents
             if self.params['stack_constits']:
                 file.create_dataset('constit', constit_shape, dtype='f4')
             else:
-                for var in constit_branches:
+                for var in self.constit_branches:
                     file.create_dataset(var, constit_shape, dtype='f4')
+
+            # Taste information
+            if len(self.taste_branches) != 0:
+                file.create_dataset('fjet_clus_taste', taste_shape, dtype='i4')
 
             # Jet information
             if self.params['stack_jets']:
                 for key in self.params['jet_keys']:
                     file.create_dataset(key, jet_shape, dtype='f4')
             else:
-                for var in jet_branches:
+                for var in self.jet_branches:
                     file.create_dataset(var, jet_shape, dtype='f4')
 
             # Event information
-            for var in event_branches:
+            for var in self.event_branches:
                 file.create_dataset(var, event_shape, dtype='f4')
 
-            # One hot information
-            for var in onehot_branches:
-                file.create_dataset(var, onehot_shape, dtype='i4')
-
             # Image information
-            for var in image_branches:
+            for var in self.image_branches:
                 file.create_dataset(var, image_shape, dtype='i4')
 
             # Labels
@@ -226,16 +229,16 @@ class SetBuilder:
 
             # Attributes
             file.attrs.create("num_jets", n_jets)
-            file.attrs.create("num_cons", len(constit_branches))
-            file.attrs.create("num_jet_features", len(jet_branches))
-            file.attrs.create("jet", jet_branches)
+            file.attrs.create("num_cons", len(self.constit_branches))
+            file.attrs.create("num_jet_features", len(self.jet_branches))
+            file.attrs.create("jet", self.jet_branches)
             file.attrs.create("jet_fields", self.params['jet_fields'])
             file.attrs.create("jet_keys", self.params['jet_keys'])
-            file.attrs.create("constit", constit_branches)
-            file.attrs.create("event", event_branches)
-            file.attrs.create("onehot", onehot_branches)
-            file.attrs.create("image", image_branches)
-            file.attrs.create("max_constits", max_constits)
+            file.attrs.create("constit", self.constit_branches)
+            file.attrs.create("taste", self.taste_branches)
+            file.attrs.create("event", self.event_branches)
+            file.attrs.create("image", self.image_branches)
+            file.attrs.create("max_constits", self.max_constits)
 
 
     def process(self):
@@ -280,17 +283,12 @@ class SetBuilder:
                 stop_index = start_index + num_file_jets
 
                 # Extract dataset names from attributes
-                constit_branches = sig.attrs.get('constit')
-                jet_branches = sig.attrs.get('jet')
-                event_branches = sig.attrs.get('event')
-                onehot_branches = sig.attrs.get('onehot')
-                image_branches = sig.attrs.get('image')
                 if self.params['stack_constits'] and not self.params['stack_jets']:
-                    unstacked = np.concatenate((event_branches, jet_branches, onehot_branches, image_branches))
+                    unstacked = np.concatenate((self.event_branches, self.jet_branches, self.image_branches, self.taste_branches))
                 elif self.params['stack_constits'] and self.params['stack_jets']:
-                    unstacked = np.concatenate((event_branches, onehot_branches, image_branches))
+                    unstacked = np.concatenate((self.event_branches, self.image_branches, self.taste_branches))
                 else:
-                    unstacked = np.concatenate((constit_branches, jet_branches, event_branches, onehot_branches, image_branches))
+                    unstacked = np.concatenate((self.constit_branches, self.jet_branches, self.event_branches, self.image_branches, self.taste_branches))
 
                 # Get random seed for our shuffles
                 rng_seed = np.random.default_rng()
@@ -306,7 +304,7 @@ class SetBuilder:
 
                 # Handle stacked constituent branches
                 if self.params['stack_constits']:
-                    stacked_out = pu.stack_branches((sig, bkg), constit_branches, seed=rseed)
+                    stacked_out = pu.stack_branches((sig, bkg), self.constit_branches, seed=rseed)
                     target['constit'][start_index:stop_index,...] = stacked_out
 
                 # Handle stacked jet branches
@@ -344,7 +342,7 @@ class SetBuilder:
                 if self.params['stack_constits']:
                     pu.calc_standards_stack(target, 'constit')
                 else:
-                    pu.calc_standards(target, self.params['constit_branches'], 'constit')
+                    pu.calc_standards(target, self.constit_branches, 'constit')
 
                 for key in self.params['jet_keys']:
                     if self.params['stack_jets']:
@@ -399,16 +397,12 @@ class SetBuilder:
                 stop_index = start_index + num_jets
 
                 # Extract dataset names from attributes
-                constit_branches = file.attrs.get('constit')
-                jet_branches = file.attrs.get('jet')
-                event_branches = file.attrs.get('event')
-                onehot_branches = file.attrs.get('onehot')
                 if self.params['stack_constits'] and not self.params['stack_jets']:
-                    unstacked = np.concatenate((event_branches, jet_branches, onehot_branches))
+                    unstacked = np.concatenate((self.event_branches, self.jet_branches. self.taste_branches))
                 elif self.params['stack_constits'] and self.params['stack_jets']:
-                    unstacked = np.concatenate((event_branches, onehot_branches))
+                    unstacked = np.concatenate((self.event_branches, self.taste_branches))
                 else:
-                    unstacked = np.concatenate((constit_branches, jet_branches, event_branches, onehot_branches))
+                    unstacked = np.concatenate((self.constit_branches, self.jet_branches, self.event_branches, self.taste_branches))
 
                 # Get random seed for our shuffles
                 rng_seed = np.random.default_rng()
@@ -422,7 +416,7 @@ class SetBuilder:
 
                 # Handle stacked constituent branches
                 if self.params['stack_constits']:
-                    stacked_out = pu.stack_branches((file,), constit_branches, seed=rseed)
+                    stacked_out = pu.stack_branches((file,), self.constit_branches, seed=rseed)
                     target['constit'][start_index:stop_index,...] = stacked_out
 
                 # Handle stacked jet branches
@@ -454,7 +448,7 @@ class SetBuilder:
                 if self.params['stack_constits']:
                     pu.calc_standards_stack(target, 'constit')
                 else:
-                    pu.calc_standards(target, self.params['constit_branches'], 'constit')
+                    pu.calc_standards(target, self.constit_branches, 'constit')
 
                 for key in self.params['jet_keys']:
                     if self.params['stack_jets']:

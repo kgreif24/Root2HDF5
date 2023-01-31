@@ -4,7 +4,7 @@ nTuples. Different pre-processing schemes can be applied easily by
 calling different functions from this module.
 
 Author: Kevin Greif
-Last updated 6/29/22
+Last updated 1/29/23
 python3
 """
 
@@ -23,8 +23,8 @@ def raw_preprocess(jets, sort_indeces, zero_indeces, params):
     # Initialize preprocess dict
     preprocess = {}
 
-    # Loop through target constituents and onehots
-    loop_branches = params['t_constit_branches'] + params['t_onehot_branches']
+    # Loop through target constituents
+    loop_branches = params['t_constit_branches']
     for name in loop_branches:
 
         # Get branch
@@ -94,7 +94,7 @@ def cartesian_pt_preprocess(jets, sort_indeces, zero_indeces, params):
             'jet_constit_pt': pts_sort}
     
 
-def energy_norm(jets, indeces, max_constits=200, **kwargs):
+def energy_norm(jets, sort_indeces, zero_indeces, max_constits=200, **kwargs):
     """ energy_norm - Defines the standard energy constituent preprocessing,
     where the transverse momentum and energy are sorted by decreasing pt
     and normalized by the sum of the pt of all jet constituents (jet pt). Function
@@ -103,47 +103,41 @@ def energy_norm(jets, indeces, max_constits=200, **kwargs):
     Arguments:
     jets (dict): Dictionary whose elements are awkard arrays giving the constituent
     pt and energy. Usually a batch of a loop over a .root file using uproot.
-    indeces (array): The indeces which will sort the constituents by INCREASING pt. Sort
-    will be reflected to sort by decreasing pt.
-    max_constits (int): The number of constituents to keep in our jets. Jets shorter
-    than this will be zero padded, jets longer than this will be truncated.
+    sort_indeces (array) - Vector of indeces used to sort consituents by pT
+    zero_indeces (array) - Vector of indeces used to set low pT constituents to zero
+    params (dict) - The r2h parameters dictionary
+    max_constits (int) - the number of constituents to keep in jets
 
     Returns:
-    (array) A zero padded array of the constituent pt
-    (array) A zero padded array of the constituent eta
+    (array) - normalized and sorted constituent pT
+    (array) - normalized and sorted constituent energy
     """
 
-    # Pt (order by pt and normalize)
+    # Pull pT and energy
     pt = jets['fjet_clus_pt']
+    en = jets['fjet_clus_E']
 
     # First normalize while still in ak array format
     pt_sum = np.sum(pt, axis=1)
     pt_norm = pt / pt_sum[:,np.newaxis]
+    en_norm = en / pt_sum[:,np.newaxis]
 
     # Zero pad and send to numpy
     pt_zero = ak.pad_none(pt_norm, max_constits, axis=1, clip=True)
     pt_zero = ak.to_numpy(ak.fill_none(pt_zero, 0, axis=None))
-
-    # Sort jets by decreasing pt
-    # Odd slicing is needed to invert pt ordering (decreasing vs increasing)
-    pt_sort = np.take_along_axis(pt_zero, indeces, axis=1)[:,::-1]
-
-
-    # E (order by Pt and normalize by Pt)
-    en = jets['fjet_clus_E']
-
-    # Normalize by pt (this is not a bug!!)
-    en_norm = en / pt_sum[:,np.newaxis]
-
-    # Zero pad and send to numpy
     en_zero = ak.pad_none(en_norm, max_constits, axis=1, clip=True)
     en_zero = ak.to_numpy(ak.fill_none(en_zero, 0, axis=None))
 
-    # Sort by decreasing pt
-    en_sort = np.take_along_axis(en_zero, indeces, axis=1)[:,::-1]
+    # Mask small pT constituents
+    pt_zero[zero_indeces] = 0
+    en_zero[zero_indeces] = 0
 
+    # Sort jets by decreasing pt
+    # Odd slicing is needed to invert pt ordering (decreasing vs increasing)
+    pt_sort = np.take_along_axis(pt_zero, sort_indeces, axis=1)[:,::-1]
+    en_sort = np.take_along_axis(en_zero, sort_indeces, axis=1)[:,::-1]
 
-    # Now simply return preprocessed pt/energy
+    # Now simply return dictionary of preprocessed pt/energy
     return pt_sort, en_sort
 
 
@@ -249,7 +243,7 @@ def simple_angular(jets, sort_indeces, zero_indeces, max_constits=200, **kwargs)
     # Find the eta/phi coordinates of hardest constituent in each jet, going to
     # need some fancy indexing
     ax_index = np.arange(0, len(eta), 1)
-    first_eta = eta[ax_index, sort_indeces[:,-2]]
+    first_eta = eta[ax_index, sort_indeces[:,-1]]
     first_phi = phi[ax_index, sort_indeces[:,-1]]
 
     # Now center
@@ -286,6 +280,7 @@ def simple_angular(jets, sort_indeces, zero_indeces, max_constits=200, **kwargs)
     # Sort constituents using indeces passed into function
     eta_sort = np.take_along_axis(eta_zero, sort_indeces, axis=1)[:,::-1]
     phi_sort = np.take_along_axis(phi_zero, sort_indeces, axis=1)[:,::-1]
+    print(eta_sort[:,0])
 
     # Finished preprocessing. Return results
     return eta_sort, phi_sort
@@ -336,6 +331,37 @@ def train_preprocess(jets, sort_indeces, zero_indeces, params):
     }
     return pp_dict
 
+def ptnorm_preprocess(jets, sort_indeces, zero_indeces, params):
+    """ ptnorm_preprocess - This function applies the alternative preprocessing
+    used for training ResNet50. It applies the "ptnorm" preprocessing for
+    dimensionful (energ and pT) inputs and the "simple_angular" preprocessing
+    for coordinate (eta and phi) inputs. It also calculates \DeltaR from
+    the preprocessed angular inputs.
+
+    Arguments and returns are standard
+    """
+
+    # Apply ptnorm preprocessing for pT and energy branches
+    norm_pt, norm_E = energy_norm(
+        jets,
+        sort_indeces,
+        zero_indeces,
+        max_constits=params['max_constits']
+    )
+
+    # Apply simple angular processing for eta and phi branches
+    eta, phi = simple_angular(
+        jets,
+        sort_indeces,
+        zero_indeces,
+        max_constits=params['max_constits']
+    )
+
+    # Return preprocessed branches
+    pp_dict = {
+        'fjet_clus_pt' : norm_pt, 'fjet_clus_eta': eta, 'fjet_clus_phi': phi, 'fjet_clus_E': norm_E
+    }
+    return pp_dict
 
 def zero_pad(ak_data, max_constits, fill=0):
     """ zero_pad - This function converts awkward arrays containing constituent

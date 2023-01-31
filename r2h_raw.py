@@ -16,16 +16,20 @@ import syst_variations as syst
 convert_dict = {
     'tree_name': ':FlatSubstructureJetTree',
     'trim': True,
-    'source_list': './dat/Zprime_taste.list',
+    'flatten': False,
+    'source_list': './dat/zprime_data.list',
     'rw_type': 'w',
     'max_constits': 200,
-    'target_dir': './dataloc/int_nominal/',
-    'n_targets': 8,
-    # 'total': 22375114,
-    'total': 4000000,
+    'target_dir': './dataloc/int_zprime_raw_nominal/',
+    'n_targets': 100,
+    'total': 22375114,
     'constit_func': pp.raw_preprocess,
-    'syst_func': syst.energy_scale,
+    'jet_func': None,
+    'syst_func': None,
     'cut_func': pu.signal_cuts,
+    'mask_lim': 100,
+    'unit_multiplier': 1.0,
+    'name_stem': 'zprime_raw_nominal_',
     's_constit_branches': [
         'fjet_clus_pt', 'fjet_clus_eta',
         'fjet_clus_phi', 'fjet_clus_E',
@@ -39,11 +43,14 @@ convert_dict = {
         'fjet_D2', 'fjet_Qw', 'fjet_L2', 'fjet_L3',
         'fjet_ThrustMaj'
     ],
+    'event_branches': [],
     't_constit_branches': [
         'fjet_clus_eta', 'fjet_clus_phi', 'fjet_clus_pt', 'fjet_clus_E',
         'fjet_clus_taste'
     ],
-    'jet_branches': ['fjet_pt', 'fjet_eta', 'fjet_phi', 'fjet_m'],
+    's_jet_branches': ['fjet_pt', 'fjet_eta', 'fjet_phi', 'fjet_m'],
+    't_jet_branches': ['fjet_pt', 'fjet_eta', 'fjet_phi', 'fjet_m'],
+    'images_branch': [],
     'cut_branches': [
         'fjet_truthJet_eta', 'fjet_truthJet_pt', 'fjet_numConstituents', 'fjet_m',
         'fjet_truth_dRmatched_particle_flavor', 'fjet_truth_dRmatched_particle_dR',
@@ -57,5 +64,5 @@ convert_dict = {
 rc = RootConverter(convert_dict)
 
 # Run main programs
-rc.run(direction='up')
+rc.run()
 
