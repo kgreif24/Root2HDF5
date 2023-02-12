@@ -280,7 +280,6 @@ def simple_angular(jets, sort_indeces, zero_indeces, max_constits=200, **kwargs)
     # Sort constituents using indeces passed into function
     eta_sort = np.take_along_axis(eta_zero, sort_indeces, axis=1)[:,::-1]
     phi_sort = np.take_along_axis(phi_zero, sort_indeces, axis=1)[:,::-1]
-    print(eta_sort[:,0])
 
     # Finished preprocessing. Return results
     return eta_sort, phi_sort

@@ -253,7 +253,7 @@ def energy_scale(jets, uncert_map, direction='up'):
                 p = cons_en / cluster_scale.GetBinContent(Ebin, ebin)
 
             # Now get pT bins
-            pbin = cluster_means.GetXaxis().FindBin(cons_pt)
+            pbin = cluster_means.GetXaxis().FindBin(p)
 
             # Correct overflow
             if (pbin > cluster_means.GetNbinsX()):
@@ -359,6 +359,9 @@ def energy_res(jets, uncert_map):
     # Counters to manage list breaks
     jet_counter = 0
     constit_counter = 0
+            
+    # Initialize random number generator
+    rng = np.random.default_rng()
 
     # Constituent loop
     for cons_en, cons_eta, cons_pt, cons_taste in iterable:
@@ -369,7 +372,7 @@ def energy_res(jets, uncert_map):
             jet_constits = n_constits[jet_counter]
 
         ## If constituent is not neutral (taste == 1), write nominal values
-        if cons_taste != 1:
+        if (cons_taste != 1):
 
             # Write nominal, converting back to MeV
             p_builder.append(1000 * cons_pt)
@@ -413,13 +416,13 @@ def energy_res(jets, uncert_map):
                 cer = 0.1
 
             # Apply smearing
-            rng = np.random.default_rng()
-            ptcer = cons_pt * (1 + rng.normal() * cer)
+            ptcer = cons_pt * (1 + rng.normal(loc=0.0, scale=1.0) * cer)
 
             # Calculate new energy
             Ecer = ptcer * np.cosh(cons_eta)
-            # print("\nOld pT: {0:.4f}\tOld en: {1:.4f}".format(cons_pt, cons_en))
-            # print("New pT: {0:0.4f}\tNew en: {1:.4f}".format(ptcer, Ecer))
+            # print("\nOld pT: {0:.4f}\tNew pT: {1:.4f}".format(cons_pt, ptcer))
+            # print("Old en: {0:0.4f}\tNew en: {1:.4f}".format(cons_en, Ecer))
+            # print("Percent variation: {0:.4f}".format((Ecer / cons_en) - 1))
 
             # Add new values to array builders
             p_builder.append(1000 * ptcer)
