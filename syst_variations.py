@@ -269,14 +269,14 @@ def energy_scale(jets, uncert_map, direction='up'):
             if p > 350 or bc == 0:
                 ces = 0.1
 
-            # Apply pT variation
+            # Apply pT and energy variation
             if direction == 'up':
                 ptces = cons_pt * (1 + ces)
+                Eces = cons_en * (1 + ces)
             elif direction == 'down':
                 ptces = cons_pt * (1 - ces)
+                Eces = cons_en * (1 - ces)
 
-            # Calculate new energy
-            Eces = ptces * np.cosh(cons_eta)
             # print("\nOld pT: {0:.4f}\tOld en: {1:.4f}".format(cons_pt, cons_en))
             # print("New pT: {0:0.4f}\tNew en: {1:.4f}".format(ptces, Eces))
 
@@ -372,7 +372,7 @@ def energy_res(jets, uncert_map):
             jet_constits = n_constits[jet_counter]
 
         ## If constituent is not neutral (taste == 1), write nominal values
-        if (cons_taste != 1):
+        if cons_taste != 1:
 
             # Write nominal, converting back to MeV
             p_builder.append(1000 * cons_pt)
@@ -415,11 +415,13 @@ def energy_res(jets, uncert_map):
             if (p > 350):
                 cer = 0.1
 
+            # Calculate smearing factor
+            factor = 1 + rng.normal(loc=0.0, scale=1.0) * cer
+            
             # Apply smearing
-            ptcer = cons_pt * (1 + rng.normal(loc=0.0, scale=1.0) * cer)
+            ptcer = factor * cons_pt
+            Ecer = factor * cons_en
 
-            # Calculate new energy
-            Ecer = ptcer * np.cosh(cons_eta)
             # print("\nOld pT: {0:.4f}\tNew pT: {1:.4f}".format(cons_pt, ptcer))
             # print("Old en: {0:0.4f}\tNew en: {1:.4f}".format(cons_en, Ecer))
             # print("Percent variation: {0:.4f}".format((Ecer / cons_en) - 1))

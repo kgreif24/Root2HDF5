@@ -11,8 +11,10 @@ python3
 import numpy as np
 import h5py
 import uproot
-import ROOT
+# import ROOT
 import awkward as ak
+import tensorflow as tf
+from energyflow.archs import PFN
 import processing_utils as pu
 import preprocessing as pp
 
@@ -72,10 +74,13 @@ class RootConverter:
             self.params['total'] = np.sum(self.limits)
             print("Due to rounding we will instead keep", self.params['total'], "jets")
 
-        # Lastly load cluster systematics map, if needed.
+        # Load cluster systematics map, if needed.
         if self.params['syst_func'] != None:
             self.syst_map = ROOT.TFile(self.params['syst_loc'], 'read')
 
+        # Load NN reweighter, if needed
+        if self.params['nn_weights'] != None:
+            self.model = tf.keras.models.load_model(self.params['nn_weights']['file'])
 
 
     def build_files(self, max_size=4000000):
@@ -118,6 +123,10 @@ class RootConverter:
                 file.create_dataset(br, img_size, maxshape=img_size, dtype='i4')
 
             for br in self.params['event_branches']:
+                file.create_dataset(br, jet_size, maxshape=jet_size, dtype='f4')
+
+            if self.params['nn_weights'] != None:
+                br = self.params['nn_weights']['name']
                 file.create_dataset(br, jet_size, maxshape=jet_size, dtype='f4')
 
             # Set file attributes
@@ -176,6 +185,10 @@ class RootConverter:
             target_branches = (
                 t_non_constit_branches + self.params['t_constit_branches']
             )
+
+            # Add nn weights branch to targets if necessary
+            if self.params['nn_weights'] != None:
+                target_branches += [self.params['nn_weights']['name']]
 
             # Use uproot.iterate to loop through files
             for jet_batch in events.iterate(step_size="200 MB",
@@ -293,6 +306,37 @@ class RootConverter:
                 # Also find batch length here
                 batch_length = pt_zero.shape[0]
 
+                ##################### NN Weights #####################
+
+                # Calculate weights using NN if needed
+                if self.params['nn_weights'] != None:
+
+                    # Ensure needed preprocessing is in batch
+                    needed_branches = self.params['nn_weights']['needed']
+                    if any([br not in batch_data.keys() for br in needed_branches]):
+
+                        pp_func = self.params['nn_weights']['pp_func']
+                        nn_jets = pp_func(batch_data, sort_indeces, small_pt_indeces, self.params)
+                        batch_data.update(nn_jets)
+
+                    # Stack information along new axis
+                    jet_inputs = [batch_data[br] for br in needed_branches]
+                    stacked_inputs = np.stack(jet_inputs, axis=-1)
+                    print(stacked_inputs.shape)
+                    print(stacked_inputs[0,0,:])
+
+                    # Run data through network
+                    predictions = self.model.predict(stacked_inputs, 
+                                                     batch_size=256, 
+                                                     verbose=0).flatten()
+
+                    print(predictions[:10])
+                    assert not any(np.isnan(predictions))
+
+                    # Store weights
+                    weight_key = self.params['nn_weights']['name']
+                    batch_data[weight_key] = predictions / (1 - predictions)
+
                 ##################### Write ########################
 
                 # Check if this batch will go over file limit
@@ -349,7 +393,6 @@ class RootConverter:
             # Find length of each split and end indeces for writing
             split_lengths = [split.shape[0] for split in branch_splits]
             end_index = self.start_index + split_lengths
-
 
             # Loop through branch_splits and write to files
             iterable = zip(branch_splits, self.start_index, end_index)
