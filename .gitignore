@@ -7,5 +7,9 @@ run_r2h?.sh
 
 dataloc
 
+*.err
+*.out
+slurm*
+
 __pycache__
 *.pyc
