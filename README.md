@@ -2,6 +2,10 @@
 
 This repository is intended to produce .h5 files from ROOT nTuples, which can then be used to train ML models. It has been used in various jet tagging and calibration projects, therefore the functionality is currently limited to processing jet information. If you're considering using this repository as part of an ML pipeline within ATLAS, you should also look at the [FTAG dumpster](https://training-dataset-dumper.docs.cern.ch/), which provides essentially the same functionality but with the added benefit of dumping directory from derivations or even AODs. In addition the code is better written and documented. However if you're interested in dumping .h5 from either flattened or unflattened nTuples containing jets, then keep reading!
 
+## Requirements
+
+Several of the more advanced features of this package, such as applying systematic variations 
+
 ## Processing Overview
 
 This repository uses a somewhat complicated 2-stage processing routine, in order to solve the problem of large data sets which can not be loaded into memory all at once. First, a set of ROOT nTuples are processed into "intermediate" files, which contain a subset of the data in the final form desired for piping data into an ML model. Second, these intermediates are independently shuffled and then combined into final training and testing .h5 files. The first step is handled by the `RootConverter` class, and the second is handled by `SetBuilder`.
@@ -31,5 +35,18 @@ Finally there is also the `event_branches` item. These are event level quantitie
 
 ### SetBuilder
 
-This class builds final training and testing .h5 files from a set of intermediates. The SetBuilder can process both a signal and background sample in the case the .h5 will be used to train a classifier, or just a single sample in the case the .h5 will be used to train a regression model. Like the `RootConverter`, this class requires a config python dictionary, several examples of which are in the `config` directory. Here is one 
+This class builds final training and testing .h5 files from a set of intermediates. The SetBuilder can process both a signal and background sample in the case the .h5 will be used to train a classifier, or just a single sample in the case the .h5 will be used to train a regression model. Like the `RootConverter`, this class requires a config python dictionary, an example of which is in the `config` directory:
+
+https://github.com/kgreif24/Root2HDF5/blob/ec66de37c882967b8b0189c3b6b97dcde28c606f/config/make_set.py#L14-L27
+
+Here's a brief overview of the items:
+- `signal`: The path to the directory storing the signal intermediates.
+- `background`: The same but for the background intermediates. If the user wishes to only run over a single set of intermediates (in the case of training a regression model), just set this to `None`.
+- `n_files`: The number of intermediate files to use in building the final training and testing sets. Set to -1 to use all intermediates. If running both signal and background, the user should ensure that the same number of jets are contained in the intermediates for signal and background, and that the same number of intermediate files exist. If the latter is not true, the code will throw an exception. Its assumed that the user wants training and testing data sets with approximately equal numbers of signal and background jets.
+- `train_name`: The name of the training set .h5 file the code will produce.
+- `test_name`: The name of the testing set. If the user does not desire to make a train / test split, set this to `None`.
+- `test_frac`: The fraction of the **intermediates** that will be used for building the testing set. Note the train / test split is made on the level of intermediate files, not individual jets.
+- `stack_constits`: If set to true, the code will stack all constituent branches along the last dimension, and include a `constit` branch in the final .h5 files. Using this feature avoids the need to stack constituents at each batch step when training a model, which can be slow depending on the application.
+- `stack_jets`: The same but for the jet branches.
+- `jet_fields` and `jet_keys`: In case the user wishes to save multiple versions of jet information (for example MCJES and GSC calibrated jets), set these items appropriately. The `jet_fields` are the data saved for each jet collection, and the `jet_keys` are the names for each individual collection. For example if we are processing the collections `jet_true` and `jet_JES` such that there are branches in the intermediate files like `jet_true_px` and `jet_JES_py`, the user should set `jet_fields` to `['_px', '_py', ...]' and `jet_keys` to `['jet_true', 'jet_JES']`. 
 
