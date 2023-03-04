@@ -8,7 +8,7 @@ Several of the more advanced features of this package, such as applying systemat
 
 ## Processing Overview
 
-This repository uses a somewhat complicated 2-stage processing routine, in order to solve the problem of large data sets which can not be loaded into memory all at once. First, a set of ROOT nTuples are processed into "intermediate" files, which contain a subset of the data in the final form desired for piping data into an ML model. Second, these intermediates are independently shuffled and then combined into final training and testing .h5 files. The first step is handled by the `RootConverter` class, and the second is handled by `SetBuilder`.
+This repository uses a somewhat complicated 2-stage processing routine, in order to solve the problem of shuffling large data sets which can not be loaded into memory all at once. First, a set of ROOT nTuples are processed into "intermediate" files, which contain a subset of the data in the final form desired for piping data into an ML model. Second, these intermediates are independently shuffled and then combined into final training and testing .h5 files. The first step is handled by the `RootConverter` class, and the second is handled by `SetBuilder`.
 
 ### RootConverter
 
