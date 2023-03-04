@@ -17,10 +17,12 @@ convert_dict = {
     'source_list': './dat/calib_data.list',
     'flatten': True,
     'max_constits': 80,
+    'mask_lim': 0,
+    'unit_multiplier': 1.0,
     'target_dir': './dataloc/h5data/intermediates/',
     'name_stem': 'calib_data',
-    'n_targets': 40,
-    'total': 20000000,
+    'n_targets': 1,
+    'total': 10000,
     'constit_func': pp.cartesian_pt_preprocess,
     'jet_func': pp.jet_preprocess,
     'cut_func': None,
@@ -35,8 +37,7 @@ convert_dict = {
         'jet_constit_px', 'jet_constit_py', 'jet_constit_pz',
         'jet_constit_pt'
     ],
-    't_onehot_branches': [],
-    't_onehot_classes': [],
+    'images_branch': [],
     's_jet_branches': [
         'jet_pt', 'jet_eta', 'jet_phi', 'jet_E',
         'jet_PileupPt', 'jet_PileupEta', 'jet_PileupPhi', 'jet_PileupE',
@@ -52,7 +53,9 @@ convert_dict = {
     'event_branches': [
         'eventNumber', 'rho', 'NPV', 'actualInteractionsPerCrossing'
     ],
-    'cut_branches': []
+    'cut_branches': [],
+    'weight_branches': [],
+    'nn_weights': None
 }
 
 # Build the class

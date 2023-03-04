@@ -17,7 +17,6 @@ convert_dict = {
     'tree_name': ':FlatSubstructureJetTree',
     'trim': True,
     'source_list': './dat/zprime_data.list',
-    'rw_type': 'w',
     'max_constits': 200,
     'mask_lim': 100,
     'unit_multiplier': 1.0,
