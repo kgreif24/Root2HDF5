@@ -9,11 +9,8 @@ Last updated 7/19/22
 python3
 """
 
-import sys
-
 import awkward as ak
 import numpy as np
-from tqdm import tqdm
 
 def reco_efficiency(jets, uncert_map):
     """ reco_efficiency - This function applies the cluster reconstruction

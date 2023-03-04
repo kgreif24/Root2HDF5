@@ -13,16 +13,16 @@ import preprocessing as pp
 
 build_dict = {
     'signal': '/DFS-L/DATA/whiteson/kgreif/JetTaggingH5/int_zprime_tst_nominal/',
-    'background': '/DFS-L/DATA/whiteson/kgreif/JetTaggingH5/int_dijet_tst_nominal/',
+    'background': None,
     'n_files': -1,
-    'test_name': None,
-    'train_name': '/DFS-L/DATA/whiteson/kgreif/JetTaggingH5/tst_nominal.h5',
-    'test_frac': 0.0,
+    'test_name': '/DFS-L/DATA/whiteson/kgreif/JetTaggingH5/test.h5',
+    'train_name': '/DFS-L/DATA/whiteson/kgreif/JetTaggingH5/train.h5',
+    'test_frac': 0.1,
     'stack_constits': True,
-    'stack_jets': False,
+    'stack_jets': True,
     'jet_fields': ['_pt', '_eta', '_phi', '_m'],
-    'jet_keys': ['fjet'],
-    'weight_func': pu.match_weights,
+    'jet_keys': ['jet', 'jet_Pileup', 'jet_JES', 'jet_true'],
+    'weight_func': None,
     'standards': False
 }
 
