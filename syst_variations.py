@@ -276,6 +276,8 @@ def energy_scale(jets, uncert_map, direction='up'):
             elif direction == 'down':
                 ptces = cons_pt * (1 - ces)
                 Eces = cons_en * (1 - ces)
+            else:
+                raise ValueError("Direction must be up or down!")
 
             # print("\nOld pT: {0:.4f}\tOld en: {1:.4f}".format(cons_pt, cons_en))
             # print("New pT: {0:0.4f}\tNew en: {1:.4f}".format(ptces, Eces))

@@ -29,7 +29,7 @@ convert_dict = {
     'cut_func': pu.signal_cuts,
     'mask_lim': 100,
     'unit_multiplier': 1.0,
-    'name_stem': 'zprime_raw_nominal_',
+    'name_stem': 'zprime_ln_nominal_',
     's_constit_branches': [
         'fjet_clus_pt', 'fjet_clus_eta',
         'fjet_clus_phi', 'fjet_clus_E',
@@ -57,7 +57,14 @@ convert_dict = {
         'fjet_truthJet_dRmatched_particle_dR_top_W_matched', 'fjet_ungroomed_truthJet_m',
         'fjet_truthJet_ungroomedParent_GhostBHadronsFinalCount', 'fjet_ungroomed_truthJet_Split23',
         'fjet_ungroomed_truthJet_pt'
-    ]
+    ],
+    'weight_branches': ['herwig_weights'],
+    'nn_weights': {'file': '/DFS-L/DATA/whiteson/kgreif/pvh_models/44-0.6779', 
+                   'name': 'herwig_weights',
+                   'needed': ['fjet_clus_eta', 'fjet_clus_phi', 'fjet_clus_log_pt', 'fjet_clus_log_E',
+                              'fjet_clus_lognorm_pt', 'fjet_clus_lognorm_E', 'fjet_clus_dR'],
+                   'pp_func': pp.train_preprocess
+    }
 }
 
 # Build the class

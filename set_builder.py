@@ -166,6 +166,8 @@ class SetBuilder:
         self.jet_branches = ref.attrs.get('jet')
         self.event_branches = ref.attrs.get('event')
         self.image_branches = ref.attrs.get('image')
+        self.weight_branches = ref.attrs.get('weights')
+        self.weight_branches = []
         self.max_constits = ref.attrs.get('max_constits')
 
         # Loop through process list
@@ -223,6 +225,10 @@ class SetBuilder:
             for var in self.image_branches:
                 file.create_dataset(var, image_shape, dtype='i4')
 
+            # Weight information
+            for var in self.weight_branches:
+                file.create_dataset(var, event_shape, dtype='f4')
+
             # Labels
             if self.run_bkg:
                 file.create_dataset('labels', event_shape, dtype='i4')
@@ -238,6 +244,7 @@ class SetBuilder:
             file.attrs.create("taste", self.taste_branches)
             file.attrs.create("event", self.event_branches)
             file.attrs.create("image", self.image_branches)
+            file.attrs.create("weights", self.weight_branches)
             file.attrs.create("max_constits", self.max_constits)
 
 
@@ -284,11 +291,11 @@ class SetBuilder:
 
                 # Extract dataset names from attributes
                 if self.params['stack_constits'] and not self.params['stack_jets']:
-                    unstacked = np.concatenate((self.event_branches, self.jet_branches, self.image_branches, self.taste_branches))
+                    unstacked = np.concatenate((self.event_branches, self.jet_branches, self.image_branches, self.taste_branches, self.weight_branches))
                 elif self.params['stack_constits'] and self.params['stack_jets']:
-                    unstacked = np.concatenate((self.event_branches, self.image_branches, self.taste_branches))
+                    unstacked = np.concatenate((self.event_branches, self.image_branches, self.taste_branches, self.weight_branches))
                 else:
-                    unstacked = np.concatenate((self.constit_branches, self.jet_branches, self.event_branches, self.image_branches, self.taste_branches))
+                    unstacked = np.concatenate((self.constit_branches, self.jet_branches, self.event_branches, self.image_branches, self.taste_branches, self.weight_branches))
 
                 # Get random seed for our shuffles
                 rng_seed = np.random.default_rng()

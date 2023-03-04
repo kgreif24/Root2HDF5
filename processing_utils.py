@@ -173,7 +173,7 @@ def calc_weights(file, weight_func):
 
     # Create new dataset in file
     weight_shape = (num_jets,)
-    weight_data = file.create_dataset("weights", shape=weight_shape, dtype='f4')
+    weight_data = file.create_dataset("training_weights", shape=weight_shape, dtype='f4')
     weight_data[:] = weights
 
 

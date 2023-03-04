@@ -2,7 +2,7 @@
 
 # Job sumission script for data generation on gpatlas
 
-#SBATCH --job-name=data_gen
+#SBATCH --job-name=r2h_zp_tst_nominal
 #SBATCH --time=20:00:00 # hh:mm:ss
 
 #SBATCH --partition=atlas
@@ -12,10 +12,10 @@
 
 #SBATCH --mem=10G
 
-#SBATCH --output=data_gen.out 
-#SBATCH --error=data_gen.err
+#SBATCH --output=r2h_zp_tst_nominal.out 
+#SBATCH --error=r2h_zp_tst_nominal.err
 
 #SBATCH --mail-user=kgreif@uci.edu
 #SBATCH --mail-type=ALL
 
-python r2h_syst.py
+python r2h_lognorm.py

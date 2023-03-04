@@ -8,13 +8,15 @@ Last updated 1/29/2023
 python3
 """
 
+import gc
+
 import numpy as np
 import h5py
 import uproot
-# import ROOT
+import ROOT
 import awkward as ak
-import tensorflow as tf
-from energyflow.archs import PFN
+# import tensorflow as tf
+# from energyflow.archs import PFN
 import processing_utils as pu
 import preprocessing as pp
 
@@ -82,6 +84,32 @@ class RootConverter:
         if self.params['nn_weights'] != None:
             self.model = tf.keras.models.load_model(self.params['nn_weights']['file'])
 
+        # Compile lists of branches for use in varying points in production
+        # Non constituent branches from source
+        self.s_non_constit_branches = (
+            self.params['s_jet_branches'] + self.params['event_branches']
+        )
+        # All branches needed after making cuts
+        self.keep_branches = (
+            self.params['s_jet_branches'] + self.params['event_branches'] 
+            + self.params['s_constit_branches']
+        )
+        # All branches that need to be pulled from source
+        self.source_branches = self.keep_branches + self.params['cut_branches']
+        # Jet shaped branches to target
+        self.t_jetshape_branches = (
+            self.params['t_jet_branches'] + self.params['event_branches']
+            + self.params['weight_branches']
+        )
+        # Non constituent branches to target
+        self.t_non_constit_branches = (
+            self.t_jetshape_branches + self.params['images_branch']
+        )
+        # All branches to target
+        self.target_branches = (
+            self.t_non_constit_branches + self.params['t_constit_branches']
+        )
+
 
     def build_files(self, max_size=4000000):
         """ build_files - Builds the h5 files which we will recieve jet data.
@@ -115,19 +143,12 @@ class RootConverter:
                     file.create_dataset(br, constits_size, maxshape=constits_size, dtype='f4')
 
             jet_size = (max_size,)
-            for br in self.params['t_jet_branches']:
+            for br in self.t_jetshape_branches:
                 file.create_dataset(br, jet_size, maxshape=jet_size, dtype='f4')
 
             for br in self.params['images_branch']:
                 img_size = (max_size, 200, 2)
                 file.create_dataset(br, img_size, maxshape=img_size, dtype='i4')
-
-            for br in self.params['event_branches']:
-                file.create_dataset(br, jet_size, maxshape=jet_size, dtype='f4')
-
-            if self.params['nn_weights'] != None:
-                br = self.params['nn_weights']['name']
-                file.create_dataset(br, jet_size, maxshape=jet_size, dtype='f4')
 
             # Set file attributes
             file.attrs.create('num_jets', 0, dtype='i4')
@@ -135,6 +156,7 @@ class RootConverter:
             file.attrs.create('jet', self.params['t_jet_branches'])
             file.attrs.create('image', self.params['images_branch'])
             file.attrs.create('event', self.params['event_branches'])
+            file.attrs.create('weights', self.params['weight_branches'])
             file.attrs.create('max_constits', self.params['max_constits'])
 
             # Add file to list
@@ -169,30 +191,9 @@ class RootConverter:
             # Break flag
             hit_file_limit = False
 
-            # Compile lists of branches for use in varying points in production
-            s_non_constit_branches = (
-                self.params['s_jet_branches'] + self.params['event_branches']
-            )
-            keep_branches = (
-                self.params['s_jet_branches'] + self.params['event_branches'] 
-                + self.params['s_constit_branches']
-            )
-            source_branches = keep_branches + self.params['cut_branches']
-            t_non_constit_branches = (
-                self.params['t_jet_branches'] + self.params['event_branches']
-                + self.params['images_branch']
-            )
-            target_branches = (
-                t_non_constit_branches + self.params['t_constit_branches']
-            )
-
-            # Add nn weights branch to targets if necessary
-            if self.params['nn_weights'] != None:
-                target_branches += [self.params['nn_weights']['name']]
-
             # Use uproot.iterate to loop through files
-            for jet_batch in events.iterate(step_size="200 MB",
-                                            filter_name=source_branches):
+            for jet_batch in events.iterate(step_size="100 MB",
+                                            filter_name=self.source_branches):
 
                 # Initialize batch data dictionary to accept information
                 batch_data = {}
@@ -229,7 +230,7 @@ class RootConverter:
 
                 if self.params['cut_func'] != None:
                     cuts = self.params['cut_func'](batch_data)
-                    batch_data = {kw: batch_data[kw][cuts,...] for kw in keep_branches}
+                    batch_data = {kw: batch_data[kw][cuts,...] for kw in self.keep_branches}
 
                 #################### Fix Units ######################
 
@@ -239,16 +240,7 @@ class RootConverter:
                         if any(s in kw for s in ['_pt', '_E', '_m']):
                             batch_data[kw] = branch * self.params['unit_multiplier'] 
 
-                #################### Apply Systs ####################
-
-                if self.params['syst_func'] != None:
-
-                    var_batch = self.params['syst_func'](batch_data,
-                                                         self.syst_map,
-                                                         **kwargs)
-                    batch_data.update(var_batch)
-
-                ################### Constituents ####################
+                ################## Calculate Indexing ################
 
                 # Get indeces to sort by increasing pt (will be inverted later)
                 pt_name = self.params['pt_name']
@@ -261,8 +253,43 @@ class RootConverter:
                 # to zero.
                 small_pt_indeces = np.asarray(pt_zero < self.params['mask_lim']).nonzero()
 
+                #################### Apply Systs ####################
+
+                if self.params['syst_func'] != None:
+
+                    var_batch = self.params['syst_func'](batch_data,
+                                                         self.syst_map,
+                                                         **kwargs)
+                    batch_data.update(var_batch)
+
+                ##################### NN Weights #####################
+
+                # Calculate weights using NN if needed
+                if self.params['nn_weights'] != None:
+
+                    # Run preprocessing for nn evaluation
+                    pp_func = self.params['nn_weights']['pp_func']
+                    nn_jets = pp_func(batch_data, sort_indeces, small_pt_indeces, self.params)
+
+                    # Stack information along new axis
+                    stacked_inputs = np.stack(list(nn_jets.values()), axis=-1)
+
+                    # Run data through network
+                    predictions = self.model.predict(stacked_inputs, 
+                                                     batch_size=256, 
+                                                     verbose=0).flatten()
+
+                    # Store weights
+                    weight_key = self.params['nn_weights']['name']
+                    batch_data[weight_key] = predictions / (1 - predictions)
+
+                    # Release memory
+                    del nn_jets, stacked_inputs, predictions
+                    gc.collect()
+
+                ################### Constituents ####################
+
                 # Here call preprocessing function, as set in params dict.
-                # See class docstring for details
                 cons_batch = self.params['constit_func'](batch_data,
                                                          sort_indeces,
                                                          small_pt_indeces,
@@ -298,44 +325,13 @@ class RootConverter:
                     batch_data.update(preprocessed_jets)
 
                 # Loop through jet and event branches
-                for name in t_non_constit_branches:
+                for name in self.t_non_constit_branches:
 
                     # Convert to numpy
                     batch_data[name] = ak.to_numpy(batch_data[name])
 
                 # Also find batch length here
                 batch_length = pt_zero.shape[0]
-
-                ##################### NN Weights #####################
-
-                # Calculate weights using NN if needed
-                if self.params['nn_weights'] != None:
-
-                    # Ensure needed preprocessing is in batch
-                    needed_branches = self.params['nn_weights']['needed']
-                    if any([br not in batch_data.keys() for br in needed_branches]):
-
-                        pp_func = self.params['nn_weights']['pp_func']
-                        nn_jets = pp_func(batch_data, sort_indeces, small_pt_indeces, self.params)
-                        batch_data.update(nn_jets)
-
-                    # Stack information along new axis
-                    jet_inputs = [batch_data[br] for br in needed_branches]
-                    stacked_inputs = np.stack(jet_inputs, axis=-1)
-                    print(stacked_inputs.shape)
-                    print(stacked_inputs[0,0,:])
-
-                    # Run data through network
-                    predictions = self.model.predict(stacked_inputs, 
-                                                     batch_size=256, 
-                                                     verbose=0).flatten()
-
-                    print(predictions[:10])
-                    assert not any(np.isnan(predictions))
-
-                    # Store weights
-                    weight_key = self.params['nn_weights']['name']
-                    batch_data[weight_key] = predictions / (1 - predictions)
 
                 ##################### Write ########################
 
@@ -350,7 +346,7 @@ class RootConverter:
                     # Set break flag
                     hit_file_limit = True
 
-                self.write_branches(batch_data, target_branches, batch_length)
+                self.write_branches(batch_data, batch_length)
 
                 #################### Increment ####################
 
@@ -369,13 +365,12 @@ class RootConverter:
             targ_file.attrs.modify("num_jets", num_jets)
 
 
-    def write_branches(self, batch, targets, length):
+    def write_branches(self, batch, length):
         """ write_branches - This function will write the branches contained
         in a batch to the target .h5 files.
 
         Arguments:
         batch (dict): A dictionary containing the batch of data to write
-        targets (list of strings): A list of the branches in dictionary to write
         length (int): The number of jets to write in this batch
 
         Returns:
@@ -385,7 +380,7 @@ class RootConverter:
         print("Number of jets to write in this batch:", length)
 
         # Loop over all target branches
-        for name in targets:
+        for name in self.target_branches:
 
             # Split branch into n_targets pieces using np.array_split
             branch_splits = np.array_split(batch[name][:length,...], self.params['n_targets'])
@@ -426,16 +421,17 @@ class RootConverter:
             # Find appropriate size for datasets in this file
             constits_size = (self.start_index[file_num], self.params['max_constits'])
             hl_size = (self.start_index[file_num],)
+            img_size = (self.start_index[file_num], 200, 2)
 
             # Loop through all target branches and resize
             for branch in self.params['t_constit_branches']:
                 targ_file[branch].resize(constits_size)
 
-            for branch in self.params['t_jet_branches']:
+            for branch in self.t_jetshape_branches:
                 targ_file[branch].resize(hl_size)
 
-            for branch in self.params['event_branches']:
-                targ_file[branch].resize(hl_size)
+            for branch in self.params['images_branch']:
+                targ_file[branch].resize(img_size)
 
 
     def run(self, **kwargs):

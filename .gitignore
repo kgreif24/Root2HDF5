@@ -1,6 +1,8 @@
 dat/*
 make_set?.py
 r2h_syst?.py
+r2h_raw?.py
+r2h_lognorm?.py
 
 run_ms?.sh
 run_r2h?.sh
