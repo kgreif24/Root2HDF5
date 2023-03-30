@@ -13,7 +13,7 @@ import gc
 import numpy as np
 import h5py
 import uproot
-# import ROOT
+import ROOT
 import awkward as ak
 # import tensorflow as tf
 # from energyflow.archs import PFN
@@ -193,7 +193,7 @@ class RootConverter:
             hit_file_limit = False
 
             # Use uproot.iterate to loop through files
-            for jet_batch in events.iterate(step_size="200 MB",
+            for jet_batch in events.iterate(step_size=110000,
                                             filter_name=self.source_branches):
 
                 # Initialize batch data dictionary to accept information

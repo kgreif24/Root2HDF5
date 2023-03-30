@@ -11,7 +11,7 @@ import numpy as np
 import uproot
 import h5py
 import awkward as ak
-# import hep_ml.reweight as reweight
+import hep_ml.reweight as reweight
 
 
 def find_raw_len(filename, test_branch, flatten):
