@@ -16,7 +16,7 @@ This class uses the `uproot.iterate` function to loop over a set of ROOT nTuples
 
 The `RootConverter` needs to be provided a python dictionary for configuration. Scripts which create such dictionaries and then run the processing are stored in the `config` sub-directory. Here's a sample config (from `r2h_calib.py`):
 
-https://github.com/kgreif24/Root2HDF5/blob/1d9b3dffcfda0bfcf024e9e81e504008ff3e62ee/config/r2h_calib.py#L13-L59
+https://gitlab.cern.ch/kgreif/Root2HDF5/-/blob/master/config/r2h_calib.py#L13-59
 
 A few dictionary items worth highlighting:
 - `tree_name`: The name of the TTree containing the jet data
@@ -37,7 +37,7 @@ Finally there is also the `event_branches` item. These are event level quantitie
 
 This class builds final training and testing .h5 files from a set of intermediates. The SetBuilder can process both a signal and background sample in the case the .h5 will be used to train a classifier, or just a single sample in the case the .h5 will be used to train a regression model. Like the `RootConverter`, this class requires a config python dictionary, an example of which is in the `config` directory:
 
-https://github.com/kgreif24/Root2HDF5/blob/156c9207cd2380c5ffebdda99c0eff9717e20965/config/make_set.py#L14-L27
+https://gitlab.cern.ch/kgreif/Root2HDF5/-/blob/master/config/make_set.py#L14-27
 
 Here's a brief overview of the items:
 - `signal`: The path to the directory storing the signal intermediates.
