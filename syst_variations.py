@@ -70,8 +70,8 @@ def reco_efficiency(jets, uncert_map):
         if constit_counter == 0:
             jet_constits = n_constits[jet_counter]
 
-        ## If constituent is not neutral (taste == 1), write True
-        if cons_taste != 1:
+        ## If constituent is not neutral (taste == 0), write True
+        if cons_taste == 0:
             builder.append(True)
 
         # Else, we apply systematic variation
@@ -219,8 +219,8 @@ def energy_scale(jets, uncert_map, direction='up'):
         if constit_counter == 0:
             jet_constits = n_constits[jet_counter]
 
-        ## If constituent is not neutral (taste == 1), write nominal values
-        if cons_taste != 1:
+        ## If constituent is charged, write nominal values
+        if cons_taste == 0:
 
             # Write nominal, remembering to convert back to MeV
             p_builder.append(1000 * cons_pt)
@@ -370,8 +370,8 @@ def energy_res(jets, uncert_map):
         if constit_counter == 0:
             jet_constits = n_constits[jet_counter]
 
-        ## If constituent is not neutral (taste == 1), write nominal values
-        if cons_taste != 1:
+        ## If constituent is charged, write nominal values
+        if cons_taste == 0:
 
             # Write nominal, converting back to MeV
             p_builder.append(1000 * cons_pt)
