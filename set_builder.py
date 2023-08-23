@@ -167,7 +167,6 @@ class SetBuilder:
         self.event_branches = ref.attrs.get('event')
         self.image_branches = ref.attrs.get('image')
         self.weight_branches = ref.attrs.get('weights')
-        self.weight_branches = []
         self.max_constits = ref.attrs.get('max_constits')
 
         # Loop through process list

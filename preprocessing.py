@@ -398,11 +398,11 @@ def jet_preprocess(jets):
     rd = {}
 
     # Hardcode the names and ordering of the relevant branches
-    prefixes = ['jet_Pileup_', 'jet_', 'jet_JES_', 'jet_true_']
-    pt_names = ['jet_PileupPt', 'jet_pt', 'jet_JESPt', 'jet_true_pt']
-    eta_names = ['jet_PileupEta', 'jet_eta', 'jet_JESEta', 'jet_true_eta']
-    phi_names = ['jet_PileupPhi', 'jet_phi', 'jet_JESPhi', 'jet_true_phi']
-    en_names = ['jet_PileupE', 'jet_E', 'jet_JESE', 'jet_true_e']
+    prefixes = ['jet_', 'jet_true_']
+    pt_names = ['jet_pt', 'jet_true_pt']
+    eta_names = ['jet_eta', 'jet_true_eta']
+    phi_names = ['jet_phi', 'jet_true_phi']
+    en_names = ['jet_E', 'jet_true_e']
 
     # Loop through jet 4 vectors
     for pf, pt, eta, phi, en in zip(prefixes, pt_names, eta_names, phi_names, en_names):
