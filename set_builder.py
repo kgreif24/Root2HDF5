@@ -45,13 +45,13 @@ class SetBuilder:
         self.schedule = []
 
         # Signal sample
-        sig_list = glob.glob(setup_dict['signal'] + '*.h5')
+        sig_list = sorted(glob.glob(setup_dict['signal'] + '*.h5'))
 
         # Background sample
         bkg_dir = setup_dict['background']
         if bkg_dir != None:
 
-            bkg_list = glob.glob(bkg_dir + '*.h5')
+            bkg_list = sorted(glob.glob(bkg_dir + '*.h5'))
             self.run_bkg = True
 
             # Ensure sig and bkg lists have the same lengths
