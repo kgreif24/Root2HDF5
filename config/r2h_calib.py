@@ -54,8 +54,7 @@ convert_dict = {
         'eventNumber', 'rho', 'NPV', 'actualInteractionsPerCrossing'
     ],
     'cut_branches': [],
-    'weight_branches': [],
-    'nn_weights': None
+    'weight_branches': []
 }
 
 # Build the class

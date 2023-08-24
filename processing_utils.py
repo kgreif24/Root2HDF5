@@ -372,7 +372,7 @@ def calib_cuts(batch):
     """
 
     # Assemble boolean arrays
-    eta = batch['jet_eta']
+    eta = batch['jet_true_eta']
     if 'var' in str(ak.type(eta)):
         eta = ak.flatten(eta)
     cuts = []

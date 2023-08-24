@@ -74,24 +74,28 @@ def cartesian_pt_preprocess(jets, sort_indeces, zero_indeces, params):
     pys_zero = zero_pad(pys, params['max_constits'])
     pzs_zero = zero_pad(pzs, params['max_constits'])
     pts_zero = zero_pad(pts, params['max_constits'])
+    etas_zero = zero_pad(eta, params['max_constits'])
 
     # Mask constituents
     pxs_zero[zero_indeces] = 0
     pys_zero[zero_indeces] = 0
     pzs_zero[zero_indeces] = 0
     pts_zero[zero_indeces] = 0
+    etas_zero[zero_indeces] = 0
 
     # Sort constituents
     pxs_sort = np.take_along_axis(pxs_zero, sort_indeces, axis=1)[:,::-1]
     pys_sort = np.take_along_axis(pys_zero, sort_indeces, axis=1)[:,::-1]
     pzs_sort = np.take_along_axis(pzs_zero, sort_indeces, axis=1)[:,::-1]
     pts_sort = np.take_along_axis(pts_zero, sort_indeces, axis=1)[:,::-1]
+    etas_sort = np.take_along_axis(etas_zero, sort_indeces, axis=1)[:,::-1]
 
     # Return dictionary
     return {'jet_constit_px': pxs_sort, 
             'jet_constit_py': pys_sort,
             'jet_constit_pz': pzs_sort,
-            'jet_constit_pt': pts_sort}
+            'jet_constit_pt': pts_sort,
+            'jet_constit_eta': etas_sort}
     
 
 def energy_norm(jets, sort_indeces, zero_indeces, max_constits=200, **kwargs):

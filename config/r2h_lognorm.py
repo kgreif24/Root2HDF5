@@ -52,8 +52,7 @@ convert_dict = {
         'fjet_truthJet_ungroomedParent_GhostBHadronsFinalCount', 'fjet_ungroomed_truthJet_Split23',
         'fjet_ungroomed_truthJet_pt'
     ],
-    'weight_branches': [],
-    'nn_weights': None
+    'weight_branches': []
 }
 
 # Build the class

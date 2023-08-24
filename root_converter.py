@@ -4,19 +4,14 @@ and converting them into the h5 file format. A single dataset can
 subsequently be built by shuffling the .h5 output files.
 
 Author: Kevin Greif
-Last updated 1/29/2023
+Last updated 8/23/2023
 python3
 """
-
-import gc
-import sys
 
 import numpy as np
 import h5py
 import uproot
 import awkward as ak
-# import tensorflow as tf
-# from energyflow.archs import PFN
 import processing_utils as pu
 import preprocessing as pp
 
@@ -262,31 +257,6 @@ class RootConverter:
                                                          self.syst_map,
                                                          **kwargs)
                     batch_data.update(var_batch)
-
-                ##################### NN Weights #####################
-
-                # Calculate weights using NN if needed
-                if self.params['nn_weights'] != None:
-
-                    # Run preprocessing for nn evaluation
-                    pp_func = self.params['nn_weights']['pp_func']
-                    nn_jets = pp_func(batch_data, sort_indeces, small_pt_indeces, self.params)
-
-                    # Stack information along new axis
-                    stacked_inputs = np.stack(list(nn_jets.values()), axis=-1)
-
-                    # Run data through network
-                    predictions = self.model.predict(stacked_inputs, 
-                                                     batch_size=256, 
-                                                     verbose=0).flatten()
-
-                    # Store weights
-                    weight_key = self.params['nn_weights']['name']
-                    batch_data[weight_key] = predictions / (1 - predictions)
-
-                    # Release memory
-                    del nn_jets, stacked_inputs, predictions
-                    gc.collect()
 
                 ################### Constituents ####################
 
