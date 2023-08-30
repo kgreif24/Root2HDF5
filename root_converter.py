@@ -4,12 +4,10 @@ and converting them into the h5 file format. A single dataset can
 subsequently be built by shuffling the .h5 output files.
 
 Author: Kevin Greif
-Last updated 1/29/2023
+Last updated 8/23/2023
 python3
 """
 
-import gc
-import os, sys
 import json
 
 import numpy as np
@@ -143,10 +141,6 @@ class RootConverter:
         if self.params['syst_func'] != None:
             self.syst_map = ROOT.TFile(self.params['syst_loc'], 'read')
 
-        # Load NN reweighter, if needed
-        if self.params['nn_weights'] != None:
-            self.model = tf.keras.models.load_model(self.params['nn_weights']['file'])
-
         # Process weights dictionary
         self.weight_names = []
         self.weight_shapes = []
@@ -270,7 +264,7 @@ class RootConverter:
             hit_file_limit = False
 
             # Use uproot.iterate to loop through files
-            for jet_batch in events.iterate(step_size=110000,
+            for jet_batch in events.iterate(step_size="100 MB",
                                             filter_name=self.source_branches):
 
                 # Initialize batch data dictionary to accept information
@@ -341,31 +335,6 @@ class RootConverter:
                                                          self.syst_map,
                                                          **kwargs)
                     batch_data.update(var_batch)
-
-                ##################### NN Weights #####################
-
-                # Calculate weights using NN if needed
-                if self.params['nn_weights'] != None:
-
-                    # Run preprocessing for nn evaluation
-                    pp_func = self.params['nn_weights']['pp_func']
-                    nn_jets = pp_func(batch_data, sort_indeces, small_pt_indeces, self.params)
-
-                    # Stack information along new axis
-                    stacked_inputs = np.stack(list(nn_jets.values()), axis=-1)
-
-                    # Run data through network
-                    predictions = self.model.predict(stacked_inputs, 
-                                                     batch_size=256, 
-                                                     verbose=0).flatten()
-
-                    # Store weights
-                    weight_key = self.params['nn_weights']['name']
-                    batch_data[weight_key] = predictions / (1 - predictions)
-
-                    # Release memory
-                    del nn_jets, stacked_inputs, predictions
-                    gc.collect()
 
                 ################### Constituents ####################
 

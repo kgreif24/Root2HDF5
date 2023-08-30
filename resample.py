@@ -23,7 +23,7 @@ args = parser.parse_args()
 print("Resampling jets from {}".format(args.infile))
 
 # Set step size for reading from input file
-stepsize = 1000000
+stepsize = 10000000
 
 # Open files
 input_file = h5py.File(args.infile, 'r')

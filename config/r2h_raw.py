@@ -58,13 +58,7 @@ convert_dict = {
         'fjet_truthJet_ungroomedParent_GhostBHadronsFinalCount', 'fjet_ungroomed_truthJet_Split23',
         'fjet_ungroomed_truthJet_pt'
     ],
-    'weight_branches': ['herwig_weights'],
-    'nn_weights': {'file': '/DFS-L/DATA/whiteson/kgreif/pvh_models/44-0.6779', 
-                   'name': 'herwig_weights',
-                   'needed': ['fjet_clus_eta', 'fjet_clus_phi', 'fjet_clus_log_pt', 'fjet_clus_log_E',
-                              'fjet_clus_lognorm_pt', 'fjet_clus_lognorm_E', 'fjet_clus_dR'],
-                   'pp_func': pp.train_preprocess
-    }
+    'weight_branches': ['herwig_weights']
 }
 
 # Build the class

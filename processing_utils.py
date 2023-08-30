@@ -129,7 +129,7 @@ def find_modulo_len(filename, denominator, is_multiple=False):
     return jet_counter
 
 
-def flat_weights(pt, n_bins=200, **kwargs):
+def flat_weights(pt, n_bins=10000, **kwargs):
     """ flat_weights - This function will use the hepml reweight function
     to calculate weights that flatten the pT distribution passed in as a numpy
     array pt. This reweighting is done separately for signal/background, so we
@@ -151,12 +151,22 @@ def flat_weights(pt, n_bins=200, **kwargs):
     rng = np.random.default_rng()
     target = rng.uniform(low=ptmin, high=ptmax, size=len(pt))
 
-    # Fit reweighter to uniform distribution
-    reweighter = reweight.BinsReweighter(n_bins=n_bins, n_neighs=3)
-    reweighter.fit(pt, target=target)
+    # Fit reweighter to uniform distribution, use only first 10 million jets to fit
+    reweighter = reweight.BinsReweighter(n_bins=n_bins, n_neighs=10)
+    reweighter.fit(pt[:10000000], target=target)
 
-    # Predict new weights
-    weights = reweighter.predict_weights(pt)
+    # Predict new weights in batches
+    batch_size = 10000000
+    num_batches = (len(pt) + batch_size - 1) // batch_size
+
+    for i in range(num_batches):
+        start = i * batch_size
+        stop = min((i+1) * batch_size, len(pt))
+        print("Finding weights for jets {} to {}".format(start, stop))
+        batch = pt[start:stop]
+        weights[start:stop] = reweighter.predict_weights(batch)
+
+    # Divide off mean of weights so they have mean of 1
     weights /= weights.mean()
 
     return weights
@@ -275,7 +285,7 @@ def calc_weights_solo(file, weight_func):
 
     # Pull info from file
     num_jets = file.attrs.get("num_jets")
-    pt = file['jet_true'][:,3]
+    pt = file['jet_true_pt'][:]
 
     # Calculate weights
     weights = weight_func(pt)
@@ -503,7 +513,7 @@ def calib_cuts(batch):
     """
 
     # Assemble boolean arrays
-    eta = batch['jet_eta']
+    eta = batch['jet_true_eta']
     if 'var' in str(ak.type(eta)):
         eta = ak.flatten(eta)
     cuts = []
@@ -656,6 +666,9 @@ def calc_standards(file, branches, name, max_jets=1000000):
 
     # Loop through branches
     for i, br in enumerate(branches):
+
+        if br == 'jet_true_E':
+            br = 'jet_true_e'
 
         # Pull and flatten branch
         var = np.ravel(file[br][:max_jets, ...])

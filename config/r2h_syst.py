@@ -52,8 +52,7 @@ convert_dict = {
         'fjet_ungroomed_truthJet_pt'
     ],
     'unit_multiplier': 1.0,
-    'mask_lim': 100,
-    'nn_weights': None
+    'mask_lim': 100
 }
 
 # Build the class
