@@ -1,4 +1,7 @@
 dat/*
+
+*[1-9].py
+*[1-9].sh
 make_set?.py
 r2h_syst?.py
 r2h_raw?.py

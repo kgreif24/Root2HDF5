@@ -6,6 +6,7 @@ python3
 Last updated 10/22/22
 """
 
+from collections.abc import Iterable
 
 import numpy as np
 import uproot
@@ -31,13 +32,13 @@ def find_raw_len(filename, test_branch, flatten):
 
     # Get test branch, and drop 3rd+ jets
     tb = events[test_branch].array()
-    tb = tb[:,:2]
 
     # Count the number of jets we have left
     if flatten:
+        tb = tb[:,:2]
         count = ak.sum(ak.count(tb, axis=1))
     else:
-        count = ak.sum(ak.count(tb, axis=0))
+        count = ak.count(tb)
     return count
 
 
@@ -54,14 +55,24 @@ def find_cut_len(filename, cut_branches, cut_func):
     (int) - The number of events in file that will pass cuts
     """
 
-    # Load information needed to make cuts
+    # Open file
+    print("Finding cut length of {}".format(filename))
     events = uproot.open(filename)
-    arrays = events.arrays(filter_name=cut_branches)
 
-    # Call cut function on the loaded arrays
-    cuts = cut_func(arrays)
+    # Initialize empty list for storing arrays of cut decisions
+    cuts = []
 
-    return np.count_nonzero(cuts)
+    # Loop through file using uproot.iterate to save memory
+    for batch in events.iterate(filter_name=cut_branches,
+                                step_size=110000):
+
+        # Call cut function
+        batch_cuts = cut_func(batch)
+
+        # Append to list
+        cuts.append(batch_cuts)
+
+    return np.count_nonzero(np.concatenate(cuts))
 
 
 def find_h5_len(filename):
@@ -69,13 +80,53 @@ def find_h5_len(filename):
     the data set.
 
     Arguments:
-    filename (string) - The path to the file
+    filename (string) - The path to the file, or iterable of paths
 
     Returns
     (int) - The length of the dataset
     """
-    f = h5py.File(filename, 'r')
-    return f.attrs.get('num_jets')
+
+    if not isinstance(filename, Iterable):
+        filename = (filename,)
+
+    counter = 0
+    for fname in filename:
+        f = h5py.File(fname, 'r')
+        counter += f.attrs.get('num_jets')
+    return counter
+
+
+def find_modulo_len(filename, denominator, is_multiple=False):
+    """ find_modulo_len - This function uses the branch "EventInfo_mcEventNumber"
+    to calculate the number of events in a given .h5 file that have an event
+    number that either is or is not a multiple of the given denominator.
+
+    Useful for performing quick train / test split divisions.
+
+    Arguments:
+    filename (string) - The path to the file, or iterable of filenames to be added
+    denominator (int) - The denominator to use
+    is_multiple (bool) - If set to true, return jets that are a multiple of denominator
+
+    Returns:
+    (int) - The number of jets in the file that satisfy the condition 
+    """
+
+    # If we only pass in a single string, make an interable list
+    if isinstance(filename, str):
+        filename = (filename,)
+
+    # Count jets in the files
+    jet_counter = 0
+    for fname in filename:
+        f = h5py.File(fname, 'r')
+        event_numbers = f['EventInfo_mcEventNumber'][:]
+        if is_multiple:
+            jet_counter += np.count_nonzero(event_numbers % denominator == 0)
+        else:
+            jet_counter += np.count_nonzero(event_numbers % denominator)
+
+    return jet_counter
 
 
 def flat_weights(pt, n_bins=200, **kwargs):
@@ -129,6 +180,36 @@ def match_weights(pt, target, n_bins=200):
     # Fit reweighter to target distribution
     reweighter = reweight.BinsReweighter(n_bins=n_bins)
     reweighter.fit(pt, target=target)
+
+    # Predict new weights
+    weights = reweighter.predict_weights(pt)
+    weights /= weights.mean()
+
+    return weights
+
+
+def target_weights(pt, n_bins=200):
+    """ target_weights - This function will calculate weights which match
+    the given pt distribution to the Pythia dijet distribution. Mostly
+    used only for the purpose of correcting for the lack of JZ5.
+
+    Arguments:
+    pt (array) - Distribution to calculate weights for
+    n_bins (int)
+
+    Returns:
+    (array) - vector of weights for pt
+    """
+    
+    # Load target pT from file
+    f = h5py.File('./dataloc/train_ln_nominal.h5', 'r')
+    targ_pt = f['fjet_pt'][:]
+    labels = f['labels'][:]
+    bkg_pt = targ_pt[labels == 0]
+
+    # Fit reweighter to target distribution
+    reweighter = reweight.BinsReweighter(n_bins=n_bins)
+    reweighter.fit(pt, target=bkg_pt)
 
     # Predict new weights
     weights = reweighter.predict_weights(pt)
@@ -222,60 +303,14 @@ def branch_shuffle(branch, seed=42):
     rng.shuffle(branch, axis=0)
 
 
-def calc_standards(file):
-    """ calc_standards - This function will calculate the mean and std. deviation of each
-    high level variable in a given .h5 file. It will return these standards as two lists.
-
-    Arguments:
-    file (string) - The path to the file we will use to calculate the means and standard deviations.
-
-    Returns:
-    (list) - The means of each hl var in our file
-    (list) - The std. deviations
-    """
-
-    # Open file
-    f = h5py.File(file, 'r')
-
-    # Pull hl var names
-    hl_vars = f.attrs.get('hl')
-
-    # Initialize empty lists
-    means_list = []
-    stddevs_list = []
-
-    # Loop through hl vars
-    for var in hl_vars:
-
-        # Pull data
-        data = f[var][:]
-
-        # For variables with large magnitudes (ECFs) divide by a large value to head off
-        # overflows in calculating mean and stddev
-        if var == 'fjet_ECF3':
-            data /= 1e10
-        elif var == 'fjet_ECF2':
-            data /= 1e6
-
-        # Calculate mean and std. dev
-        mean = data.mean()
-        stddev = data.std()
-
-        # Append to lists
-        means_list.append(mean)
-        stddevs_list.append(stddev)
-
-    return means_list, stddevs_list
-
-
-def common_cuts(batch, exit_check=[]):
+def common_cuts(batch, hlvar_check=False):
     """ common_cuts - This function will take in a batch of data (almost always as loaded)
     by uproot.iterate and apply the common cuts for Rel22. For when data format does not
     allow uproot to do this for us.
 
     Arguments:
     batch (obj or dict) - The batch, where branches are accessible by string names
-    exit_check (list of strings) - The names of branches we wish to check for -999 exit codes
+    hlvar_check (bool) - If true check for -999 exit codes in hlvars
 
     Returns:
     (array) - A boolean array of len branch.shape[0]. If True, jet passes common cuts
@@ -285,12 +320,16 @@ def common_cuts(batch, exit_check=[]):
     cuts = []
     cuts.append(abs(batch['fjet_truthJet_eta']) < 2.0)
     cuts.append(batch['fjet_truthJet_pt'] / 1000. > 350.)
-    cuts.append(batch['fjet_numConstituents'] >= 3)
     cuts.append(batch['fjet_m'] / 1000. > 40.)
 
-    # Look for exit codes
-    for var in exit_check:
-        cuts.append(batch[var] != -999)
+    # Apply cut on number of constituents, don't use 'fjet_numConstituents' since this
+    # isn't updated when we drop consituents when running systematics.
+    num_constits = ak.count(batch['fjet_clus_pt'], axis=1)
+    cuts.append(num_constits >= 3)
+
+    # Apply hlvar check if requested
+    if hlvar_check:
+        cuts.append(exit_check(batch))
 
     # Take and of all cuts
     total_cuts = np.logical_and.reduce(cuts)
@@ -298,12 +337,35 @@ def common_cuts(batch, exit_check=[]):
     return total_cuts
 
 
-def signal_cuts(batch):
+def common_cuts_test(batch, denominator=22, **kwargs):
+    """ common_cuts_test - Calls the above function, but also includes a requirement
+    that the jet's event number modulo the given denominator == 0.
+
+    Useful for building testings sets from systematic varied nTuples.
+
+    Arguments:
+    As above, plus...
+    denominator (int) - The denominator to use in calculating modulus
+
+    Returns:
+    As above 
+    """
+
+    cuts = []
+    cuts.append(common_cuts(batch, **kwargs))
+    cuts.append(batch['EventInfo_mcEventNumber'] % denominator == 0)
+    total_cuts = np.logical_and.reduce(cuts)
+
+    return total_cuts
+
+
+def signal_cuts(batch, hlvar_check=False):
     """ signal_cuts - Calls the above function to produce the common cuts, but
     also adds a set of signal cuts which should be applied to the Z' sample.
 
     Arguments:
     batch (obj or dict) - The batch data from which to compute cuts
+    hlvar_check (bool) - If true check for -999 exit codes in hlvars
 
     Returns:
     (array) - Boolean array representing total cuts
@@ -319,11 +381,90 @@ def signal_cuts(batch):
     cuts.append(batch['fjet_truthJet_ungroomedParent_GhostBHadronsFinalCount'] >= 1)
     cuts.append(batch['fjet_ungroomed_truthJet_Split23'] / 1000. > np.exp(3.3-6.98e-4*batch['fjet_ungroomed_truthJet_pt']/1000.))
 
+    # Apply hlvar check if requested
+    if hlvar_check:
+        cuts.append(exit_check(batch))
+
     # Take and of all cuts
     total_cuts = np.logical_and.reduce(cuts)
 
     return total_cuts
 
+
+def signal_cuts_test(batch, denominator=22, **kwargs):
+    """ signal_cuts_test - Calls the above function, but also includes a requirement
+    that the jet's event number modulo the given denominator == 0.
+
+    Useful for building testings sets from systematic varied nTuples.
+
+    Arguments:
+    As above, plus...
+    denominator (int) - The denominator to use in calculating modulus
+
+    Returns:
+    As above 
+    """
+
+    cuts = []
+    cuts.append(signal_cuts(batch, **kwargs))
+    cuts.append(batch['EventInfo_mcEventNumber'] % denominator == 0)
+    total_cuts = np.logical_and.reduce(cuts)
+
+    return total_cuts
+
+
+def ttbar_cuts(batch, hlvar_check=False):
+    """ ttbar_cuts - Calls the above function to produce the signal cuts,
+    but also adds a requirement on the dR between the top and anti-top
+    partons in SM ttbar events.
+
+    Arguments:
+    batch (obj or dict) - The batch data from which to compute cuts
+    hlvar_check (bool) - If true check for -999 exit codes in hlvars
+
+    Returns:
+    (array) - Boolean array representing total cuts
+    """
+
+    # Assemble boolean arrays
+    cuts = []
+    cuts.append(signal_cuts(batch))
+    cuts.append(batch['EventInfo_ttbar_deltaR'] < 2.0)
+
+    # Apply hlvar check if requested
+    if hlvar_check:
+        cuts.append(exit_check(batch))
+
+    # Take and of all cuts
+    total_cuts = np.logical_and.reduce(cuts)
+
+    return total_cuts
+
+
+def exit_check(batch):
+    """ exit_check - This function will check the standard list of hlvars for exit codes.
+    Jets with exit codes will be cut from the dataset. Since all hlvars should be positive,
+    just cut anything that is less than zero.
+
+    Arguments:
+    batch (obj or dict) - The batch, where branches are accessible by string names
+
+    Returns:
+    (array) - A boolean array of len branch.shape[0]. If True, jet passes exit check
+    """
+
+    # Assemble boolean arrays
+    cuts = []
+    hlvar_names = ['fjet_Tau1_wta', 'fjet_Tau2_wta', 'fjet_Tau3_wta', 'fjet_Tau4_wta',
+                   'fjet_Split12', 'fjet_Split23', 'fjet_ECF1', 'fjet_ECF2', 'fjet_ECF3',
+                   'fjet_C2', 'fjet_D2', 'fjet_Qw', 'fjet_L2', 'fjet_L3', 'fjet_ThrustMaj']
+    for name in hlvar_names:
+        cuts.append(batch[name] > 0)
+
+    # Take and of all cuts
+    total_cuts = np.logical_and.reduce(cuts)
+
+    return total_cuts
 
 def trans_cuts(batch):
     """ trans_cuts - Implements the cuts we will use for both signal and

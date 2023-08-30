@@ -9,14 +9,14 @@ python3
 """
 
 import gc
+import os, sys
+import json
 
 import numpy as np
 import h5py
 import uproot
-import ROOT
+# import ROOT
 import awkward as ak
-# import tensorflow as tf
-# from energyflow.archs import PFN
 import processing_utils as pu
 import preprocessing as pp
 
@@ -49,16 +49,15 @@ class RootConverter:
         cf = self.params['cut_func']
 
         if cf != None:
-            raw_file_events = [pu.find_cut_len(name, cb, cf) for name in self.files]
+            self.raw_file_events = {name: pu.find_cut_len(name, cb, cf) for name in self.files}
         else:
-            raw_file_events = [pu.find_raw_len(
+            self.raw_file_events = {name: pu.find_raw_len(
                 name,
                 self.params['test_name'],
                 self.params['flatten']
-            ) for name in self.files]
+            ) for name in self.files}
 
-        self.raw_file_events = np.array(raw_file_events)
-        self.raw_events = np.sum(self.raw_file_events)
+        self.raw_events = sum(list(self.raw_file_events.values()))
         print("We have", self.raw_events, "jets in total")
         print("We wish to keep", self.params['total'], "of these jets")
 
@@ -69,12 +68,75 @@ class RootConverter:
             print("We have", self.raw_events, "jets, so keep this many")
 
         # Find number of jets we actually want to pull from each file
-        fractions = self.raw_file_events / self.raw_events
-        self.limits = np.around(fractions * self.params['total']).astype(int)
+        self.limits = {
+            name: round(count * self.params['total'] / self.raw_events) for name, count in self.raw_file_events.items()
+        }
+
+        # Adjustment limit numbers to pull all jets from high JZ slices in dijet samples
+        if 'dijet' in self.params['source_list']:
+
+            # First find number of jets we have in each JZ slice
+            slice_list = np.arange(364702, 364713, 1)
+            slice_counts = {}
+            for jz in slice_list:
+                sc = sum([count for name, count in self.raw_file_events.items() if str(jz) in name])
+                slice_counts[str(jz)] = sc
+
+            # I'm just going to hard code which slice to pull all jets from, then evenly
+            # spred the rest. I think this should be good enough.
+            if 'data' in self.params['source_list']:
+                full_slice = [364702, 364708, 364709, 364710, 364711, 364712]
+            else:
+                full_slice = [364702, 364710, 364711, 364712]
+            full_slice_count = sum([count for jz, count in slice_counts.items() if int(jz) in full_slice])
+            print(f"Have {full_slice_count} jets from JZ slices where we want full statistics")
+
+            # Subtract full slice count from the total desired jets
+            total_even_split = self.params['total'] - full_slice_count
+            assert total_even_split > 0
+
+            # Find number of jets to pull from the even split JZ slices
+            even_split_count = round(total_even_split / (len(slice_list) - len(full_slice)))
+
+            # Assemble list of number of jets to pull from each slice
+            pull_slice_counts = {
+                name: count if int(name) in full_slice else even_split_count for name, count in slice_counts.items() 
+            }
+            print("This is a dijet sample! Here's the number of jets we will pull from each JZ slice")
+            formatted_output = json.dumps(pull_slice_counts, indent=4)
+            print(formatted_output)
+
+            # Now need to adjust the limits for each individual ROOT file so the slice counts come out correctly
+            # Write a quick lambda function
+            def find_jz_index(name):
+                for jz in slice_list:
+                    if str(jz) in name:
+                        return int(jz)
+                    
+            # Use function to find JZ slices of all files
+            file_jz_info = {f: [find_jz_index(f), count] for f, count in self.raw_file_events.items()}
+                
+            # Now adjust limits based on the jz slice and number of jets in each file
+            counters = {jz: 0 for jz in slice_list}
+            for f, info in file_jz_info.items():
+                if counters[info[0]] < pull_slice_counts[str(info[0])]:
+                    # If this file will put us over limit
+                    if counters[info[0]] + info[1] > pull_slice_counts[str(info[0])]:
+                        diff = pull_slice_counts[str(info[0])] - counters[info[0]]
+                        counters[info[0]] += diff
+                        self.limits[f] = diff
+                    # If this file will not put us over limit
+                    else:
+                        counters[info[0]] += info[1]
+                        self.limits[f] = info[1]
+                else:
+                    # If we are over the number of jets requested from JZ slice, don't use any jets
+                    # from this file
+                    self.limits[f] = 0
 
         # Update total as rounding can cause us to be off by just a bit
-        if np.sum(self.limits) != self.params['total']:
-            self.params['total'] = np.sum(self.limits)
+        if sum(list(self.limits.values())) != self.params['total']:
+            self.params['total'] = sum(list(self.limits.values()))
             print("Due to rounding we will instead keep", self.params['total'], "jets")
 
         # Load cluster systematics map, if needed.
@@ -85,26 +147,35 @@ class RootConverter:
         if self.params['nn_weights'] != None:
             self.model = tf.keras.models.load_model(self.params['nn_weights']['file'])
 
+        # Process weights dictionary
+        self.weight_names = []
+        self.weight_shapes = []
+        if self.params['weight_branches'] != None:
+            self.weight_names = [nm['name'] for nm in self.params['weight_branches']]
+            self.weight_shapes = [nm['shape'] for nm in self.params['weight_branches']]
+
         # Compile lists of branches for use in varying points in production
         # Non constituent branches from source
         self.s_non_constit_branches = (
-            self.params['s_jet_branches'] + self.params['event_branches']
+            self.params['s_jet_branches'] + self.params['event_branches'] + self.params['hlvars']
+            + self.weight_names
         )
         # All branches needed after making cuts
         self.keep_branches = (
             self.params['s_jet_branches'] + self.params['event_branches'] 
-            + self.params['s_constit_branches']
+            + self.params['s_constit_branches'] + self.params['hlvars']
+            + self.weight_names
         )
         # All branches that need to be pulled from source
         self.source_branches = self.keep_branches + self.params['cut_branches']
         # Jet shaped branches to target
         self.t_jetshape_branches = (
             self.params['t_jet_branches'] + self.params['event_branches']
-            + self.params['weight_branches']
+            + self.params['hlvars']
         )
         # Non constituent branches to target
         self.t_non_constit_branches = (
-            self.t_jetshape_branches + self.params['images_branch']
+            self.t_jetshape_branches + self.params['images_branch'] + self.weight_names
         )
         # All branches to target
         self.target_branches = (
@@ -131,6 +202,7 @@ class RootConverter:
 
             # Open file
             filename = self.params['target_dir'] + self.params['name_stem'] + str(file_num) + ".h5"
+            print("Making file", filename)
             file = h5py.File(filename, 'w')
 
             # Create all datasets in file
@@ -151,13 +223,18 @@ class RootConverter:
                 img_size = (max_size, 200, 2)
                 file.create_dataset(br, img_size, maxshape=img_size, dtype='i4')
 
+            for nm, shp in zip(self.weight_names, self.weight_shapes):
+                this_weight_shape = (max_size,) + shp
+                file.create_dataset(nm, this_weight_shape, maxshape=this_weight_shape, dtype='f4')
+
             # Set file attributes
             file.attrs.create('num_jets', 0, dtype='i4')
             file.attrs.create('constit', self.params['t_constit_branches'])
             file.attrs.create('jet', self.params['t_jet_branches'])
+            file.attrs.create('hl', self.params['hlvars'])
             file.attrs.create('image', self.params['images_branch'])
             file.attrs.create('event', self.params['event_branches'])
-            file.attrs.create('weights', self.params['weight_branches'])
+            file.attrs.create('weights', self.weight_names)
             file.attrs.create('max_constits', self.params['max_constits'])
 
             # Add file to list
@@ -180,7 +257,7 @@ class RootConverter:
         print("\nStarting processing loop...")
 
         # Loop through source files
-        for num_source, ifile in enumerate(self.files):
+        for ifile in self.files:
 
             # Open file using uproot
             print("\nNow processing file", ifile)
@@ -230,7 +307,7 @@ class RootConverter:
                 ##################### Make Cuts #####################
 
                 if self.params['cut_func'] != None:
-                    cuts = self.params['cut_func'](batch_data)
+                    cuts = self.params['cut_func'](batch_data, hlvar_check=self.params['hlvar_check'])
                     batch_data = {kw: batch_data[kw][cuts,...] for kw in self.keep_branches}
 
                 #################### Fix Units ######################
@@ -244,15 +321,17 @@ class RootConverter:
                 ################## Calculate Indexing ################
 
                 # Get indeces to sort by increasing pt (will be inverted later)
-                pt_name = self.params['pt_name']
-                pt = batch_data[pt_name]
-                pt_zero = ak.pad_none(pt, self.params['max_constits'], axis=1, clip=True)
-                pt_zero = ak.to_numpy(ak.fill_none(pt_zero, 0, axis=1))
-                sort_indeces = np.argsort(pt_zero, axis=1)
+                if self.params['pt_name'] != None:
 
-                # Find indeces of constituents we wish to mask by setting
-                # to zero.
-                small_pt_indeces = np.asarray(pt_zero < self.params['mask_lim']).nonzero()
+                    pt_name = self.params['pt_name']
+                    pt = batch_data[pt_name]
+                    pt_zero = ak.pad_none(pt, self.params['max_constits'], axis=1, clip=True)
+                    pt_zero = ak.to_numpy(ak.fill_none(pt_zero, 0, axis=1))
+                    sort_indeces = np.argsort(pt_zero, axis=1)
+
+                    # Find indeces of constituents we wish to mask by setting
+                    # to zero.
+                    small_pt_indeces = np.asarray(pt_zero < self.params['mask_lim']).nonzero()
 
                 #################### Apply Systs ####################
 
@@ -291,11 +370,12 @@ class RootConverter:
                 ################### Constituents ####################
 
                 # Here call preprocessing function, as set in params dict.
-                cons_batch = self.params['constit_func'](batch_data,
-                                                         sort_indeces,
-                                                         small_pt_indeces,
-                                                         self.params)
-                batch_data.update(cons_batch)
+                if self.params['constit_func'] != None:
+                    cons_batch = self.params['constit_func'](batch_data,
+                                                            sort_indeces,
+                                                            small_pt_indeces,
+                                                            self.params)
+                    batch_data.update(cons_batch)
 
                 ####################### Images ######################
 
@@ -326,22 +406,32 @@ class RootConverter:
                     batch_data.update(preprocessed_jets)
 
                 # Loop through jet and event branches
-                for name in self.t_non_constit_branches:
+                for i, name in enumerate(self.t_non_constit_branches):
 
                     # Convert to numpy
                     batch_data[name] = ak.to_numpy(batch_data[name])
 
-                # Also find batch length here
-                batch_length = pt_zero.shape[0]
+                    # Include catch to normalize hlvars with dimensions
+                    # Assuming hlvars are in units of MeV
+                    if name in ['fjet_Split12', 'fjet_Split23', 'fjet_ECF1', 'fjet_Qw']:
+                        batch_data[name] /= 1e6
+                    elif name in ['fjet_ECF2']:
+                        batch_data[name] /= 1e12
+                    elif name in ['fjet_ECF3']:
+                        batch_data[name] /= 1e18
+
+                    # Also find batch length here
+                    if i == 0:
+                        batch_length = batch_data[name].shape[0]
 
                 ##################### Write ########################
 
                 # Check if this batch will go over file limit
-                if jets_from_file + batch_length > self.limits[num_source]:
+                if jets_from_file + batch_length > self.limits[ifile]:
                     print("Have written", jets_from_file, "jets")
                     print("We have", batch_length, "jets in this batch")
-                    print("This puts us over limit of", self.limits[num_source], "jets")
-                    batch_length = self.limits[num_source] - jets_from_file
+                    print("This puts us over limit of", self.limits[ifile], "jets")
+                    batch_length = self.limits[ifile] - jets_from_file
                     print("Instead write", batch_length, "jets")
 
                     # Set break flag
@@ -433,6 +523,10 @@ class RootConverter:
 
             for branch in self.params['images_branch']:
                 targ_file[branch].resize(img_size)
+
+            for branch, shape in zip(self.weight_names, self.weight_shapes):
+                this_weight_shape = (self.start_index[file_num],) + shape
+                targ_file[branch].resize(this_weight_shape)
 
 
     def run(self, **kwargs):
