@@ -454,3 +454,119 @@ def energy_res(jets, uncert_map):
 
     # Return dictionary with varied pT and energy information
     return {'fjet_clus_pt': var_pt, 'fjet_clus_E': var_en}
+
+
+def position(jets, uncert_map):
+    """ position - This function applies the cluster position resolution
+    variation to the constituent level inputs. Assumes eta and phi
+    information is given in units of radians.
+
+    Arguments:
+    jets (dict): The jet batch, almost always as defined in the root converter
+    class after cuts have been applied. See root_converter.py for details.
+    uncert_map (TFile): The uncertaintiy map file object loaded using PyROOT
+
+    Returns:
+    (dict): A dictionary containing the constituent level quantities with
+    applies systematic variation.
+    """
+
+    # Pull information from batch
+    eta = ak.flatten(jets['fjet_clus_eta'])
+    phi = ak.flatten(jets['fjet_clus_phi'])
+    pt = ak.flatten(jets['fjet_clus_pt'])
+
+    # Instead of building an awkard array with boolean values, we directly
+    # build the new pT and energy values for the constituents
+    n_jets = len(jets['fjet_clus_pt'])
+    n_constits = ak.count(jets['fjet_clus_pt'], axis=1)
+    total_constits = ak.sum(n_constits)
+
+    ## Initialize awkward array builders to construct new 4 vector
+    eta_builder = ak.ArrayBuilder()
+    phi_builder = ak.ArrayBuilder()
+    pt_builder = ak.ArrayBuilder()
+
+    # Immediately begin list in array builders
+    eta_builder.begin_list()
+    phi_builder.begin_list()
+    pt_builder.begin_list()
+
+    ## Loop over flattened array, putting list breaks in awkward array based
+    # on information in n_constits vector
+    taste = ak.flatten(jets['fjet_clus_taste'])
+    iterable = zip(eta, phi, pt, taste) 
+
+    # Counters to manage list breaks
+    jet_counter = 0
+    constit_counter = 0
+
+    # Initialize random number generator
+    rng = np.random.default_rng()
+
+    # Constituent loop
+    for cons_eta, cons_phi, cons_pt, cons_taste in iterable:
+
+        ## Start by finding number of constits in a jet, only if this is
+        # the first constituent
+        if constit_counter == 0:
+            jet_constits = n_constits[jet_counter]
+
+        ## If constituent is charged or merged, write nominal values
+        if cons_taste == 0 or cons_taste == 2:
+
+            # Write nominal, converting back to MeV
+            eta_builder.append(cons_eta)
+            phi_builder.append(cons_phi)
+            pt_builder.append(cons_pt)
+
+        # Else, we apply systematic variation
+        else:
+
+            # Smear eta and phi
+            eta_smeared = rng.normal(loc=cons_eta, scale=0.005)
+            phi_smeared = rng.normal(loc=cons_phi, scale=0.005)
+
+            # Calculate new pT
+            pt_smeared = cons_pt * np.cosh(cons_eta) / np.cosh(eta_smeared)
+
+            # print("\nOld eta: {0:.4f}\tNew eta: {1:.4f}".format(cons_eta, eta_smeared))
+            # print("Old phi: {0:0.4f}\tNew phi: {1:.4f}".format(cons_phi, phi_smeared))
+            # print("Old pT: {0:.4f}\tNew pT: {1:.4f}".format(cons_pt, pt_smeared))
+
+            # Add new values to array builders
+            eta_builder.append(eta_smeared)
+            phi_builder.append(phi_smeared)
+            pt_builder.append(pt_smeared)
+
+        ## Increment consituent counter
+        constit_counter += 1
+
+        ## If this is the last constituent in the jet, add array break
+        if constit_counter == jet_constits:
+
+            # Add array break
+            eta_builder.end_list()
+            phi_builder.end_list()
+            pt_builder.end_list()
+            eta_builder.begin_list()
+            phi_builder.begin_list()
+            pt_builder.begin_list()
+
+            # Reset constituent counter
+            constit_counter = 0
+
+            # Increment jet counter
+            jet_counter += 1
+
+    # End constituent loop
+    # Take snapshots of builders
+    var_eta = eta_builder.snapshot()
+    var_phi = phi_builder.snapshot()
+    var_pt = pt_builder.snapshot()
+
+    # Return dictionary with varied 4-vector
+    return {'fjet_clus_eta': var_eta,
+            'fjet_clus_phi': var_phi,
+            'fjet_clus_pt': var_pt}
+

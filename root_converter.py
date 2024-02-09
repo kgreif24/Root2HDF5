@@ -82,12 +82,13 @@ class RootConverter:
 
             # I'm just going to hard code which slice to pull all jets from, then evenly
             # spred the rest. I think this should be good enough.
-            if 'data' in self.params['source_list']:
+            if self.params['total'] > 1.1e7:
                 full_slice = [364702, 364708, 364709, 364710, 364711, 364712]
             else:
                 full_slice = [364702, 364710, 364711, 364712]
             full_slice_count = sum([count for jz, count in slice_counts.items() if int(jz) in full_slice])
             print(f"Have {full_slice_count} jets from JZ slices where we want full statistics")
+            print(f"These slices are {full_slice}")
 
             # Subtract full slice count from the total desired jets
             total_even_split = self.params['total'] - full_slice_count
@@ -211,7 +212,10 @@ class RootConverter:
 
             jet_size = (max_size,)
             for br in self.t_jetshape_branches:
-                file.create_dataset(br, jet_size, maxshape=jet_size, dtype='f4')
+                if br == 'EventInfo_mcEventNumber':
+                    file.create_dataset(br, jet_size, maxshape=jet_size, dtype='i4')
+                else:
+                    file.create_dataset(br, jet_size, maxshape=jet_size, dtype='f4')
 
             for br in self.params['images_branch']:
                 img_size = (max_size, 200, 2)
@@ -302,6 +306,10 @@ class RootConverter:
 
                 if self.params['cut_func'] != None:
                     cuts = self.params['cut_func'](batch_data, hlvar_check=self.params['hlvar_check'])
+                    # If no jets pass cuts, just continue to next batch
+                    if np.count_nonzero(cuts) == 0:
+                        print("No jets passed cuts in this batch, skipping!")
+                        continue
                     batch_data = {kw: batch_data[kw][cuts,...] for kw in self.keep_branches}
 
                 #################### Fix Units ######################
@@ -331,6 +339,7 @@ class RootConverter:
 
                 if self.params['syst_func'] != None:
 
+
                     var_batch = self.params['syst_func'](batch_data,
                                                          self.syst_map,
                                                          **kwargs)
@@ -341,9 +350,9 @@ class RootConverter:
                 # Here call preprocessing function, as set in params dict.
                 if self.params['constit_func'] != None:
                     cons_batch = self.params['constit_func'](batch_data,
-                                                            sort_indeces,
-                                                            small_pt_indeces,
-                                                            self.params)
+                                                             sort_indeces,
+                                                             small_pt_indeces,
+                                                             self.params)
                     batch_data.update(cons_batch)
 
                 ####################### Images ######################
